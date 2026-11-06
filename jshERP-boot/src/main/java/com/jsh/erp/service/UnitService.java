@@ -24,9 +24,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 
 @Service
 public class UnitService {
@@ -227,7 +225,7 @@ public class UnitService {
      * @return
      */
     public BigDecimal parseStockByUnit(BigDecimal stock, Unit unitInfo, String materialUnit) {
-        if(stock!=null) {
+        if(stock!=null && unitInfo!=null && StringUtil.isNotEmpty(materialUnit)) {
             if (materialUnit.equals(unitInfo.getOtherUnit()) && unitInfo.getRatio() != null && unitInfo.getRatio().compareTo(BigDecimal.ZERO) != 0) {
                 stock = stock.divide(unitInfo.getRatio(), 2, BigDecimal.ROUND_HALF_UP);
             }
@@ -302,5 +300,14 @@ public class UnitService {
             JshException.writeFail(logger, e);
         }
         return result;
+    }
+
+    public Map<Long,Unit> getUnitMap() throws Exception {
+        List<Unit> unitList = getUnit();
+        Map<Long,Unit> unitMap = new HashMap<>();
+        for(Unit unit : unitList){
+            unitMap.put(unit.getId(), unit);
+        }
+        return unitMap;
     }
 }

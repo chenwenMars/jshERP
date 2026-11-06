@@ -2,13 +2,25 @@
   <a-row :gutter="10">
     <a-col :md="12" :sm="24">
       <a-card :bordered="false">
-
         <!-- 按钮操作区域 -->
         <a-row style="margin-left: 14px">
-          <a-button v-if="btnEnableList.indexOf(1)>-1" @click="handleAdd()" type="primary">添加机构</a-button>
+          <a-button v-if="btnEnableList.indexOf(1)>-1" @click="handleAdd()" type="primary">添加部门</a-button>
           <a-button v-if="btnEnableList.indexOf(1)>-1" title="删除多条数据" @click="batchDel" type="default">批量删除</a-button>
           <a-button @click="refresh" type="default" icon="reload">刷新</a-button>
-          <a-button type="dashed">提示：机构可录入公司部门或门店</a-button>
+          <a-dropdown :trigger="['click']" placement="topCenter">
+            <a-menu slot="overlay">
+              <a-menu-item key="1" @click="switchCheckStrictly(1)">父子关联</a-menu-item>
+              <a-menu-item key="2" @click="switchCheckStrictly(2)">取消关联</a-menu-item>
+              <a-menu-item key="3" @click="checkALL">全部勾选</a-menu-item>
+              <a-menu-item key="4" @click="cancelCheckALL">取消全选</a-menu-item>
+              <a-menu-item key="5" @click="expandAll">展开所有</a-menu-item>
+              <a-menu-item key="6" @click="closeAll">合并所有</a-menu-item>
+            </a-menu>
+            <a-button>
+              树操作 <a-icon type="down" />
+            </a-button>
+          </a-dropdown>
+          <a-button type="dashed">提示：部门可录入公司部门或门店</a-button>
         </a-row>
         <div style="background: #fff;padding-left:16px;height: 100%; margin-top: 5px">
           <a-alert type="info" :showIcon="true">
@@ -33,7 +45,6 @@
                   :treeData="departTree"
                   :checkStrictly="checkStrictly"
                   :expandedKeys="iExpandedKeys"
-                  :autoExpandParent="true"
                   @expand="onExpand"/>
                 </span>
               </a-dropdown>
@@ -41,23 +52,6 @@
           </a-col>
         </div>
       </a-card>
-      <!---- author:os_chengtgen -- date:20190827 --  for:切换父子勾选模式 =======------>
-      <div class="drawer-bootom-button">
-        <a-dropdown :trigger="['click']" placement="topCenter">
-          <a-menu slot="overlay">
-            <a-menu-item key="1" @click="switchCheckStrictly(1)">父子关联</a-menu-item>
-            <a-menu-item key="2" @click="switchCheckStrictly(2)">取消关联</a-menu-item>
-            <a-menu-item key="3" @click="checkALL">全部勾选</a-menu-item>
-            <a-menu-item key="4" @click="cancelCheckALL">取消全选</a-menu-item>
-            <a-menu-item key="5" @click="expandAll">展开所有</a-menu-item>
-            <a-menu-item key="6" @click="closeAll">合并所有</a-menu-item>
-          </a-menu>
-          <a-button>
-            树操作 <a-icon type="up" />
-          </a-button>
-        </a-dropdown>
-      </div>
-      <!---- author:os_chengtgen -- date:20190827 --  for:切换父子勾选模式 =======------>
     </a-col>
     <a-col :md="12" :sm="24">
       <a-card :bordered="false" v-if="selectedKeys.length>0">
@@ -68,10 +62,10 @@
           <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" label="编号">
             <a-input placeholder="请输入编号" v-decorator="['orgNo', validatorRules.orgNo ]"/>
           </a-form-item>
-          <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" label="上级机构">
+          <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" label="上级部门">
             <a-tree-select style="width:100%" :dropdownStyle="{maxHeight:'200px',overflow:'auto'}"
                            allow-clear :treeDefaultExpandAll="true"
-                           :treeData="treeData" v-decorator="[ 'parentId' ]" placeholder="请选择上级机构">
+                           :treeData="treeData" v-decorator="[ 'parentId' ]" placeholder="请选择上级部门">
             </a-tree-select>
           </a-form-item>
           <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" label="排序">
@@ -88,7 +82,7 @@
       </a-card>
       <a-card v-else >
         <a-empty>
-          <span slot="description"> 请先选择一个机构! </span>
+          <span slot="description"> 请先选择一个部门! </span>
         </a-empty>
       </a-card>
     </a-col>
@@ -175,12 +169,12 @@ export default {
       let that = this
       that.treeData = []
       that.departTree = []
+      that.iExpandedKeys = []
+      that.allTreeKeys = []
       let params = {};
       params.id='';
       queryOrganizationTreeList(params).then((res) => {
         if (res) {
-          //机构全选后，再添加机构，选中数量增多
-          this.allTreeKeys = [];
           for (let i = 0; i < res.length; i++) {
             let temp = res[i]
             that.departTree.push(temp)
@@ -305,7 +299,7 @@ export default {
         }
       });
     },
-    //根据机构id加载机构树
+    //根据部门id加载部门树
     getTreeByParams(params) {
       queryOrganizationTreeList(params).then((res) => {
         if (res) {
@@ -316,7 +310,7 @@ export default {
         }
       })
     },
-    // 触发onSelect事件时,为机构树右侧的form表单赋值
+    // 触发onSelect事件时,为部门树右侧的form表单赋值
     setValuesToForm(record) {
       this.$nextTick(() => {
         this.form.setFieldsValue(pick(record, 'orgAbr', 'orgNo', 'parentId', 'sort', 'remark'))
@@ -346,7 +340,7 @@ export default {
       this.form.validateFields((err, values) => {
         if (!err) {
           if (!this.currSelected.id) {
-            this.$message.warning('请点击选择要修改机构!')
+            this.$message.warning('请点击选择要修改部门!')
             return
           }
           let formData = Object.assign(this.currSelected, values)

@@ -18,7 +18,7 @@
       <a-button v-if="billPrintFlag && isShowPrintBtn" @click="handlePrintPro('零售出库')">三联打印-新版</a-button>
       <a-button v-if="billPrintFlag && isShowPrintBtn" @click="handlePrint('零售出库')">三联打印</a-button>
       <a-button v-if="checkFlag && isCanCheck" :loading="confirmLoading" @click="handleOkAndCheck">保存并审核</a-button>
-      <a-button type="primary" :loading="confirmLoading" @click="handleOk">保存（Ctrl+S）</a-button>
+      <a-button type="primary" :loading="confirmLoading" @click="handleOkOnly">保存（Ctrl+S）</a-button>
       <!--发起多级审核-->
       <a-button v-if="!checkFlag" @click="handleWorkflow()" type="primary">提交流程</a-button>
     </template>
@@ -29,7 +29,7 @@
             <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" label="会员卡号" data-step="1" data-title="会员卡号"
                          data-intro="如果发现需要选择的会员卡号尚未录入，可以在下拉框中点击新增会员信息进行录入">
               <a-select placeholder="请选择会员卡号" v-decorator="[ 'organId' ]"
-                :dropdownMatchSelectWidth="false" showSearch optionFilterProp="children" @change="onChangeOrgan">
+                :dropdownMatchSelectWidth="false" showSearch optionFilterProp="children" @change="onChangeOrgan" @search="handleSearchRetail">
                 <div slot="dropdownRender" slot-scope="menu">
                   <v-nodes :vnodes="menu" />
                   <a-divider style="margin: 4px 0;" />

@@ -4,18 +4,9 @@ import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.jsh.erp.base.BaseController;
 import com.jsh.erp.base.TableDataInfo;
-import com.jsh.erp.datasource.entities.Material;
-import com.jsh.erp.datasource.entities.MaterialExtend;
-import com.jsh.erp.datasource.entities.MaterialVo4Unit;
-import com.jsh.erp.datasource.entities.Unit;
+import com.jsh.erp.datasource.entities.*;
 import com.jsh.erp.datasource.vo.MaterialDepotStock;
-import com.jsh.erp.service.DepotService;
-import com.jsh.erp.service.DepotItemService;
-import com.jsh.erp.service.MaterialService;
-import com.jsh.erp.service.RoleService;
-import com.jsh.erp.service.SystemConfigService;
-import com.jsh.erp.service.UnitService;
-import com.jsh.erp.service.UserService;
+import com.jsh.erp.service.*;
 import com.jsh.erp.utils.*;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -66,6 +57,9 @@ public class MaterialController extends BaseController {
 
     @Resource
     private UserService userService;
+
+    @Resource
+    private SupplierService supplierService;
 
     @Value(value="${file.uploadType}")
     private Long fileUploadType;
@@ -342,17 +336,19 @@ public class MaterialController extends BaseController {
                         unit = unitService.getUnit(material.getUnitId());
                         //拼接副单位的比例
                         String commodityUnit = material.getCommodityUnit();
-                        if(commodityUnit.equals(unit.getBasicUnit())) {
-                            ratioStr = "[基本]";
-                        }
-                        if(commodityUnit.equals(unit.getOtherUnit()) && unit.getRatio()!=null) {
-                            ratioStr = "[" + unit.getRatio().stripTrailingZeros().toPlainString() + unit.getBasicUnit() + "]";
-                        }
-                        if(commodityUnit.equals(unit.getOtherUnitTwo()) && unit.getRatioTwo()!=null) {
-                            ratioStr = "[" + unit.getRatioTwo().stripTrailingZeros().toPlainString() + unit.getBasicUnit() + "]";
-                        }
-                        if(commodityUnit.equals(unit.getOtherUnitThree()) && unit.getRatioThree()!=null) {
-                            ratioStr = "[" + unit.getRatioThree().stripTrailingZeros().toPlainString() + unit.getBasicUnit() + "]";
+                        if(StringUtil.isNotEmpty(commodityUnit) && unit!=null) {
+                            if(commodityUnit.equals(unit.getBasicUnit())) {
+                                ratioStr = "[基本]";
+                            }
+                            if(commodityUnit.equals(unit.getOtherUnit()) && unit.getRatio()!=null) {
+                                ratioStr = "[" + unit.getRatio().stripTrailingZeros().toPlainString() + unit.getBasicUnit() + "]";
+                            }
+                            if(commodityUnit.equals(unit.getOtherUnitTwo()) && unit.getRatioTwo()!=null) {
+                                ratioStr = "[" + unit.getRatioTwo().stripTrailingZeros().toPlainString() + unit.getBasicUnit() + "]";
+                            }
+                            if(commodityUnit.equals(unit.getOtherUnitThree()) && unit.getRatioThree()!=null) {
+                                ratioStr = "[" + unit.getRatioThree().stripTrailingZeros().toPlainString() + unit.getBasicUnit() + "]";
+                            }
                         }
                     }
                     item.put("mBarCode", material.getmBarCode());
@@ -600,6 +596,8 @@ public class MaterialController extends BaseController {
             if(materialExtend!=null && StringUtil.isNotEmpty(materialExtend.getBarCode())) {
                 barCode = materialExtend.getBarCode();
             }
+            //查下供应商或者客户的信息
+            Supplier supplier = organId!=null ? supplierService.getSupplier(organId) : null;
             List<MaterialVo4Unit> list = materialService.getMaterialByBarCode(barCode);
             if(list!=null && list.size()>0) {
                 for(MaterialVo4Unit mvo: list) {
@@ -610,11 +608,11 @@ public class MaterialController extends BaseController {
                     } else if ("CGDD".equals(prefixNo) || "CGRK".equals(prefixNo) || "CGTH".equals(prefixNo)) {
                         //采购价
                         mvo.setBillPrice(mvo.getPurchaseDecimal());
-                    } else if("QTRK".equals(prefixNo) || "DBCK".equals(prefixNo) || "ZZD".equals(prefixNo) || "CXD".equals(prefixNo)
+                    } else if("QTRK".equals(prefixNo) || "QTCK".equals(prefixNo) || "DBCK".equals(prefixNo) || "ZZD".equals(prefixNo) || "CXD".equals(prefixNo)
                             || "PDLR".equals(prefixNo) || "PDFP".equals(prefixNo)) {
                         //采购价-给录入界面按权限屏蔽
                         mvo.setBillPrice(roleService.parseBillPriceByLimit(mvo.getPurchaseDecimal(), "buy", priceLimit, request));
-                    } else if ("XSDD".equals(prefixNo) || "XSCK".equals(prefixNo) || "XSTH".equals(prefixNo) || "QTCK".equals(prefixNo)) {
+                    } else if ("XSDD".equals(prefixNo) || "XSCK".equals(prefixNo) || "XSTH".equals(prefixNo)) {
                         //销售价
                         if(organId == null) {
                             mvo.setBillPrice(mvo.getWholesaleDecimal());
@@ -662,6 +660,36 @@ public class MaterialController extends BaseController {
                         mvo.setDepotId(depotId);
                         getStockByMaterialInfo(mvo);
                     }
+                    //税率
+                    BigDecimal taxRate = BigDecimal.ZERO;
+                    if(supplier!=null && supplier.getTaxRate()!=null) {
+                        taxRate = supplier.getTaxRate();
+                    }
+                    mvo.setTaxRate(taxRate);
+                    //税额
+                    BigDecimal taxMoney = BigDecimal.ZERO;
+                    if(taxRate.compareTo(BigDecimal.ZERO) != 0 && mvo.getBillPrice()!=null) {
+                        if(systemConfigService.getMaterialPriceTaxFlag()) {
+                            //商品价格含税-开启
+                            BigDecimal taxRatePercent = taxRate.divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
+                            taxMoney = mvo.getBillPrice().divide(BigDecimal.ONE.add(taxRatePercent), 2, BigDecimal.ROUND_HALF_UP)
+                                    .multiply(taxRatePercent).setScale(2, BigDecimal.ROUND_HALF_UP);
+                        } else {
+                            taxMoney = taxRate.multiply(mvo.getBillPrice()).divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
+                        }
+                    }
+                    mvo.setTaxMoney(taxMoney);
+                    //价税合计
+                    BigDecimal taxLastMoney = BigDecimal.ZERO;
+                    if(mvo.getBillPrice()!=null) {
+                        if(systemConfigService.getMaterialPriceTaxFlag()) {
+                            //商品价格含税-开启
+                            taxLastMoney = mvo.getBillPrice();
+                        } else {
+                            taxLastMoney = mvo.getBillPrice().add(taxMoney);
+                        }
+                    }
+                    mvo.setTaxLastMoney(taxLastMoney);
                 }
             }
             res.code = 200;
@@ -738,11 +766,13 @@ public class MaterialController extends BaseController {
                     depotList.add(object.getLong("id"));
                 }
             }
+            Long userId = userService.getUserId(request);
+            String priceLimit = userService.getRoleTypeByUserId(userId).getPriceLimit();
             Boolean moveAvgPriceFlag = systemConfigService.getMoveAvgPriceFlag();
-            List<MaterialVo4Unit> dataList = materialService.getListWithStock(depotList, idList, StringUtil.toNull(position), StringUtil.toNull(materialParam),
-                    moveAvgPriceFlag, zeroStock, StringUtil.safeSqlParse(column), StringUtil.safeSqlParse(order), (currentPage-1)*pageSize, pageSize);
-            int total = materialService.getListWithStockCount(depotList, idList, StringUtil.toNull(position), StringUtil.toNull(materialParam), zeroStock);
-            MaterialVo4Unit materialVo4Unit= materialService.getTotalStockAndPrice(depotList, idList, StringUtil.toNull(position), StringUtil.toNull(materialParam));
+            List<MaterialVo4Unit> dataList = materialService.getListWithStock(priceLimit, depotList, idList, StringUtil.toNull(position), StringUtil.toNull(materialParam),
+                    moveAvgPriceFlag, zeroStock, StringUtil.safeSqlParse(column), StringUtil.safeSqlParse(order), (currentPage-1)*pageSize, pageSize, request);
+            int total = materialService.getListWithStockCount(priceLimit, depotList, idList, StringUtil.toNull(position), StringUtil.toNull(materialParam), zeroStock);
+            MaterialVo4Unit materialVo4Unit= materialService.getTotalStockAndPrice(priceLimit, depotList, idList, StringUtil.toNull(position), StringUtil.toNull(materialParam), request);
             map.put("total", total);
             map.put("currentStock", materialVo4Unit.getCurrentStock()!=null?materialVo4Unit.getCurrentStock():BigDecimal.ZERO);
             if(moveAvgPriceFlag) {
@@ -751,6 +781,14 @@ public class MaterialController extends BaseController {
                 map.put("currentStockPrice", materialVo4Unit.getCurrentStockPrice()!=null?materialVo4Unit.getCurrentStockPrice():BigDecimal.ZERO);
             }
             map.put("currentWeight", materialVo4Unit.getCurrentWeight()!=null?materialVo4Unit.getCurrentWeight():BigDecimal.ZERO);
+            boolean showStockPrice = true;
+            if(StringUtil.isNotEmpty(priceLimit)) {
+                if(priceLimit.contains("7")) {
+                    showStockPrice = false;
+                }
+            }
+            map.put("showStockPrice", showStockPrice);
+            map.put("moveAvgPriceFlag", moveAvgPriceFlag);
             map.put("rows", dataList);
             res.code = 200;
             res.data = map;
@@ -775,7 +813,11 @@ public class MaterialController extends BaseController {
                                  HttpServletRequest request)throws Exception {
         String ids = jsonObject.getString("ids");
         Map<String, Object> objectMap = new HashMap<>();
-        int res = materialService.batchSetMaterialCurrentStock(ids);
+        List<Depot> depotList = depotService.getAllList();
+        if(depotList.isEmpty()) {
+            return returnJson(objectMap, "请先创建仓库后再操作", ErpInfo.WARING_MSG.code);
+        }
+        int res = materialService.batchSetMaterialCurrentStock(ids, depotList);
         if(res > 0) {
             return returnJson(objectMap, ErpInfo.OK.name, ErpInfo.OK.code);
         } else {
@@ -856,7 +898,7 @@ public class MaterialController extends BaseController {
             @RequestParam(value = "depotIds",required = false) String depotIds,
             @RequestParam("materialId") Long mId,
             HttpServletRequest request)throws Exception {
-        List<MaterialDepotStock> list = materialService.getMaterialDepotStock(depotIds, mId);
+        List<MaterialDepotStock> list = materialService.getMaterialDepotStock(depotIds, mId, request);
         return getDataTable(list);
     }
 }

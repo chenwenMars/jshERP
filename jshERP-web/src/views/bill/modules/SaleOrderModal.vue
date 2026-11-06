@@ -18,7 +18,7 @@
       <a-button v-if="billPrintFlag && isShowPrintBtn" @click="handlePrintPro('销售订单')">三联打印-新版</a-button>
       <a-button v-if="billPrintFlag && isShowPrintBtn" @click="handlePrint('销售订单')">三联打印</a-button>
       <a-button v-if="checkFlag && isCanCheck" :loading="confirmLoading" @click="handleOkAndCheck">保存并审核</a-button>
-      <a-button type="primary" :loading="confirmLoading" @click="handleOk">保存（Ctrl+S）</a-button>
+      <a-button type="primary" :loading="confirmLoading" @click="handleOkOnly">保存（Ctrl+S）</a-button>
       <!--发起多级审核-->
       <a-button v-if="!checkFlag" @click="handleWorkflow()" type="primary">提交流程</a-button>
     </template>
@@ -30,7 +30,7 @@
               data-intro="客户必须选择，如果发现需要选择的客户尚未录入，可以在下拉框中点击新增客户进行录入。
                           特别注意，客户如果录入之后在下拉框中不显示，请检查是否给当前用户分配对应的客户权限">
               <a-select placeholder="请选择客户" v-decorator="[ 'organId', validatorRules.organId ]"
-                :dropdownMatchSelectWidth="false" showSearch optionFilterProp="children" @change="handleOrganChange">
+                :dropdownMatchSelectWidth="false" showSearch optionFilterProp="children" @change="handleOrganChange" @search="handleSearchCustomer">
                 <div slot="dropdownRender" slot-scope="menu">
                   <v-nodes :vnodes="menu" />
                   <a-divider style="margin: 4px 0;" />
@@ -114,7 +114,7 @@
           <a-col :lg="6" :md="12" :sm="24">
             <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" label="收款优惠" data-step="6" data-title="收款优惠"
                          data-intro="针对单据明细中商品总金额进行优惠的金额">
-              <a-input placeholder="请输入付款优惠" v-decorator.trim="[ 'discountMoney' ]" @change="onChangeDiscountMoney"/>
+              <a-input placeholder="请输入收款优惠" v-decorator.trim="[ 'discountMoney' ]" @change="onChangeDiscountMoney"/>
             </a-form-item>
           </a-col>
           <a-col :lg="6" :md="12" :sm="24">

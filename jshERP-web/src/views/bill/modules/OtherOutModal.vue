@@ -17,7 +17,7 @@
       <a-button v-if="billPrintFlag && isShowPrintBtn" @click="handlePrintPro('其它出库')">三联打印-新版</a-button>
       <a-button v-if="billPrintFlag && isShowPrintBtn" @click="handlePrint('其它出库')">三联打印</a-button>
       <a-button v-if="checkFlag && isCanCheck" :loading="confirmLoading" @click="handleOkAndCheck">保存并审核</a-button>
-      <a-button type="primary" :loading="confirmLoading" @click="handleOk">保存（Ctrl+S）</a-button>
+      <a-button type="primary" :loading="confirmLoading" @click="handleOkOnly">保存（Ctrl+S）</a-button>
       <!--发起多级审核-->
       <a-button v-if="!checkFlag" @click="handleWorkflow()" type="primary">提交流程</a-button>
     </template>
@@ -27,7 +27,7 @@
           <a-col :lg="6" :md="12" :sm="24">
             <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" label="客户">
               <a-select placeholder="请选择客户" v-decorator="[ 'organId' ]" :disabled="!rowCanEdit"
-                :dropdownMatchSelectWidth="false" showSearch optionFilterProp="children" @change="handleOrganChange">
+                :dropdownMatchSelectWidth="false" showSearch optionFilterProp="children" @change="handleOrganChange" @search="handleSearchCustomer">
                 <div slot="dropdownRender" slot-scope="menu">
                   <v-nodes :vnodes="menu" />
                   <a-divider style="margin: 4px 0;" />
@@ -208,7 +208,7 @@
             { title: '有效期', key: 'expirationDate',width: '7%', type: FormTypes.input, readonly: true },
             { title: '多属性', key: 'sku', width: '9%', type: FormTypes.normal },
             { title: '原数量', key: 'preNumber', width: '4%', type: FormTypes.normal },
-            { title: '已入库', key: 'finishNumber', width: '4%', type: FormTypes.normal },
+            { title: '已出库', key: 'finishNumber', width: '4%', type: FormTypes.normal },
             { title: '数量', key: 'operNumber', width: '5%', type: FormTypes.inputNumber, statistics: true,
               validateRules: [{ required: true, message: '${title}不能为空' }]
             },

@@ -10,7 +10,12 @@
               <a-col :md="6" :sm="24">
                 <a-form-item label="供应商" :labelCol="labelCol" :wrapperCol="wrapperCol">
                   <a-select placeholder="请选择供应商" v-model="queryParam.organId"
-                    :dropdownMatchSelectWidth="false" showSearch allow-clear optionFilterProp="children">
+                    :dropdownMatchSelectWidth="false" showSearch allow-clear optionFilterProp="children" @search="handleSearchSupplier">
+                    <div slot="dropdownRender" slot-scope="menu">
+                      <v-nodes :vnodes="menu" />
+                      <a-divider style="margin: 4px 0;" />
+                      <div class="dropdown-btn" @mousedown="e => e.preventDefault()" @click="initSupplier"><a-icon type="reload" /> 刷新列表</div>
+                    </div>
                     <a-select-option v-for="(item,index) in supList" :key="index" :value="item.id">
                       {{ item.supplier }}
                     </a-select-option>
@@ -148,7 +153,11 @@
     mixins:[JeecgListMixin],
     components: {
       DebtAccountList,
-      JEllipsis
+      JEllipsis,
+      VNodes: {
+        functional: true,
+        render: (h, ctx) => ctx.props.vnodes,
+      }
     },
     data () {
       return {
@@ -175,6 +184,7 @@
         supList: [],
         firstTotal: '',
         lastTotal: '',
+        setTimeFlag: null,
         tabKey: "1",
         pageName: 'vendorAccount',
         // 默认索引
@@ -199,7 +209,7 @@
           {title: '本期欠款', dataIndex: 'debtMoney', sorter: (a, b) => a.debtMoney - b.debtMoney, width: 80},
           {title: '本期付款', dataIndex: 'backMoney', sorter: (a, b) => a.backMoney - b.backMoney, width: 80},
           {dataIndex: 'allNeed', sorter: (a, b) => a.allNeed - b.allNeed, width: 80,
-            slots: { title: 'allNeedTitle' }
+            scopedSlots: { title: 'allNeedTitle' }
           }
         ],
         url: {
@@ -221,11 +231,24 @@
       },
       initSupplier() {
         let that = this;
-        findBySelectSup({}).then((res)=>{
+        findBySelectSup({limit:1}).then((res)=>{
           if(res) {
             that.supList = res;
           }
         });
+      },
+      handleSearchSupplier(value) {
+        let that = this
+        if(this.setTimeFlag != null){
+          clearTimeout(this.setTimeFlag);
+        }
+        this.setTimeFlag = setTimeout(()=>{
+          findBySelectSup({key: value, limit:1}).then((res) => {
+            if(res) {
+              that.supList = res;
+            }
+          })
+        },500)
       },
       onDateChange: function (value, dateString) {
         this.queryParam.beginTime=dateString[0]

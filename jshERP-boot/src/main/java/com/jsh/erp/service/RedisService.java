@@ -3,6 +3,7 @@ package com.jsh.erp.service;
 import com.jsh.erp.constants.BusinessConstants;
 import com.jsh.erp.utils.StringUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.connection.DataType;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.serializer.RedisSerializer;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -62,6 +64,16 @@ public class RedisService {
             }
         }
         return obj;
+    }
+
+    /**
+     * 缓存基本的对象，Integer、String、实体类等
+     *
+     * @param key   缓存的键值
+     * @param value 缓存的值
+     */
+    public <T> void setCacheObject(final String key, final T value) {
+        redisTemplate.opsForValue().set(key, value);
     }
 
     /**
@@ -125,6 +137,16 @@ public class RedisService {
     }
 
     /**
+     * 删除集合对象
+     *
+     * @param collection 多个对象
+     * @return
+     */
+    public boolean deleteObject(final Collection collection) {
+        return redisTemplate.delete(collection) > 0;
+    }
+
+    /**
      * @author jisheng hua
      * description:
      *  将信息从session或者redis中移除
@@ -153,11 +175,42 @@ public class RedisService {
     public void deleteObjectByUserAndIp(Long userId, String clientIp){
         Set<String> tokens = redisTemplate.keys("*");
         for(String token : tokens) {
-            Object userIdValue = redisTemplate.opsForHash().get(token, "userId");
-            Object clientIpValue = redisTemplate.opsForHash().get(token, "clientIp");
-            if(userIdValue!=null && clientIpValue!=null && userIdValue.equals(userId.toString()) && clientIpValue.equals(clientIp)) {
-                redisTemplate.opsForHash().delete(token, "userId");
+            // 检查键是否存在且为哈希类型
+            if (redisTemplate.hasKey(token) && redisTemplate.type(token) == DataType.HASH) {
+                Object userIdValue = redisTemplate.opsForHash().get(token, "userId");
+                Object clientIpValue = redisTemplate.opsForHash().get(token, "clientIp");
+                if(userIdValue!=null && clientIpValue!=null && userIdValue.equals(userId.toString()) && clientIpValue.equals(clientIp)) {
+                    redisTemplate.opsForHash().delete(token, "userId");
+                }
             }
         }
+    }
+
+    /**
+     * @author jisheng hua
+     * 将信息从redis中移除，比对user
+     * @param userId
+     */
+    public void deleteObjectByUser(Long userId){
+        Set<String> tokens = redisTemplate.keys("*");
+        for(String token : tokens) {
+            // 检查键是否存在且为哈希类型
+            if (redisTemplate.hasKey(token) && redisTemplate.type(token) == DataType.HASH) {
+                Object userIdValue = redisTemplate.opsForHash().get(token, "userId");
+                if(userIdValue!=null && userIdValue.equals(userId.toString())) {
+                    redisTemplate.opsForHash().delete(token, "userId");
+                }
+            }
+        }
+    }
+
+    /**
+     * 获得缓存的基本对象列表
+     *
+     * @param pattern 字符串前缀
+     * @return 对象列表
+     */
+    public Collection<String> keys(final String pattern) {
+        return redisTemplate.keys(pattern);
     }
 }

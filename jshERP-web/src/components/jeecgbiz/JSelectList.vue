@@ -1,9 +1,9 @@
 <template>
   <div>
-    <a-input-group v-if="kind === 'material'" compact style="width:100%;top:0px">
+    <a-input-group v-if="kind === 'material'" compact style="width:100%;top:0px;display:flex;">
       <a-select placeholder="输入条码或名称" :dropdownMatchSelectWidth="false" showSearch :showArrow="false"
-                v-model="names" optionFilterProp="children" :style="searchWidth" notFoundContent="需在商品管理先新增才能使用"
-                @search="handleSearch" @change="handleChange">
+                v-model="names" optionFilterProp="children" style="flex:1; min-width:0;" notFoundContent="需在商品管理先新增才能使用"
+                @search="handleSearch" @change="handleChange" @keyup.enter.native="handleEnter">
         <div slot="dropdownRender" slot-scope="menu">
           <v-nodes :vnodes="menu" />
           <a-divider v-if="materialData.length===20" style="margin: 4px 0;" />
@@ -68,9 +68,9 @@
       return {
         ids: "",
         names: "",
+        preNames: "",
         materialData: [],
-        setTimeFlag: null,
-        searchWidth: ""
+        setTimeFlag: null
       }
     },
     mounted() {
@@ -82,12 +82,6 @@
       }
     },
     created () {
-      const currentWidth = window.screen.width
-      if(currentWidth<1500) {
-        this.searchWidth = 'width:75%'
-      } else {
-        this.searchWidth = 'width:81%'
-      }
     },
     model: {
       prop: 'value',
@@ -98,7 +92,9 @@
         this.names = name ? name : undefined
       },
       onSearch() {
-        this.$refs.selectModal.showModal()
+        let barCode = this.materialData.length?this.preNames:''
+        //点放大镜，把关键词一起带过去，前提是有搜索结果
+        this.$refs.selectModal.showModal(barCode)
       },
       handleSearch(value) {
         let that = this
@@ -106,6 +102,7 @@
           clearTimeout(this.setTimeFlag);
         }
         this.setTimeFlag = setTimeout(()=>{
+          that.preNames = value
           getMaterialByParam({q: value}).then((res) => {
             if (res && res.code === 200) {
               that.materialData = res.data
@@ -115,6 +112,12 @@
       },
       handleChange(value) {
         this.$emit("change", value)
+      },
+      handleEnter() {
+        if(this.materialData.length===0) {
+          //在搜不到的时候建议回车就能打开放大镜
+          this.$refs.selectModal.showModal()
+        }
       },
       selectOK(rows, idstr) {
         console.log("选中id", idstr)

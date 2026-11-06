@@ -45,7 +45,12 @@
               <a-row :gutter="24">
                 <a-col :md="6" :sm="24">
                   <a-form-item label="客户" :labelCol="labelCol" :wrapperCol="wrapperCol">
-                    <a-select placeholder="请选择客户" showSearch allow-clear optionFilterProp="children" v-model="queryParam.organId">
+                    <a-select placeholder="请选择客户" showSearch allow-clear optionFilterProp="children" v-model="queryParam.organId" @search="handleSearchCustomer">
+                      <div slot="dropdownRender" slot-scope="menu">
+                        <v-nodes :vnodes="menu" />
+                        <a-divider style="margin: 4px 0;" />
+                        <div class="dropdown-btn" @mousedown="e => e.preventDefault()" @click="initCustomer(0)"><a-icon type="reload" /> 刷新列表</div>
+                      </div>
                       <a-select-option v-for="(item,index) in cusList" :key="index" :value="item.id">
                         {{ item.supplier }}
                       </a-select-option>
@@ -85,8 +90,16 @@
                   </a-form-item>
                 </a-col>
                 <a-col :md="6" :sm="24">
-                  <a-form-item label="有无欠款" :labelCol="labelCol" :wrapperCol="wrapperCol">
-                    <a-select placeholder="请选择有无欠款" allow-clear v-model="queryParam.hasDebt">
+                  <a-form-item label="本次欠款" :labelCol="labelCol" :wrapperCol="wrapperCol">
+                    <a-select placeholder="请选择有无本次欠款" allow-clear v-model="queryParam.hasDebt">
+                      <a-select-option value="1">有欠款</a-select-option>
+                      <a-select-option value="0">无欠款</a-select-option>
+                    </a-select>
+                  </a-form-item>
+                </a-col>
+                <a-col :md="6" :sm="24">
+                  <a-form-item label="最终欠款" :labelCol="labelCol" :wrapperCol="wrapperCol">
+                    <a-select placeholder="请选择有无最终欠款" allow-clear v-model="queryParam.hasLastDebt">
                       <a-select-option value="1">有欠款</a-select-option>
                       <a-select-option value="0">无欠款</a-select-option>
                     </a-select>
@@ -125,12 +138,15 @@
         <div class="table-operator"  style="margin-top: 5px">
           <a-button v-if="btnEnableList.indexOf(1)>-1" @click="myHandleAdd" type="primary" icon="plus">新增</a-button>
           <a-button v-if="btnEnableList.indexOf(1)>-1" icon="delete" @click="batchDel">删除</a-button>
+          <a-button v-if="checkFlag && btnEnableList.indexOf(2)>-1" icon="check" @click="batchSetStatus(1)">审核</a-button>
+          <a-button v-if="checkFlag && btnEnableList.indexOf(7)>-1" icon="stop" @click="batchSetStatus(0)">反审核</a-button>
           <a-button v-if="quickBtn.saleBack.indexOf(1)>-1 && btnEnableList.indexOf(1)>-1" icon="share-alt" @click="transferBill('转销售退货', quickBtn.saleBack)">转销售退货</a-button>
           <a-tooltip title="可将状态是部分出库的单据强制完成">
             <a-button v-if="inOutManageFlag && btnEnableList.indexOf(1)>-1" icon="issues-close" @click="batchForceClose">强制结单</a-button>
           </a-tooltip>
-          <a-button v-if="checkFlag && btnEnableList.indexOf(2)>-1" icon="check" @click="batchSetStatus(1)">审核</a-button>
-          <a-button v-if="checkFlag && btnEnableList.indexOf(7)>-1" icon="stop" @click="batchSetStatus(0)">反审核</a-button>
+          <a-tooltip title="可对最终欠款的值进行修正">
+            <a-button v-if="btnEnableList.indexOf(1)>-1" icon="fund" @click="batchSetLastDebt">修正欠款</a-button>
+          </a-tooltip>
           <a-button v-if="isShowExcel && btnEnableList.indexOf(3)>-1" icon="download" @click="handleExport">导出</a-button>
           <a-popover trigger="click" placement="right">
             <template slot="content">
@@ -191,10 +207,10 @@
             </span>
             <template slot="customRenderDebt" slot-scope="value, record">
               <a-tooltip title="有收款单">
-                <span style="color:green" v-if="value>0 && record.hasFinancialFlag">{{value}}</span>
+                <span style="color:green" v-if="value>0 && value>record.lastDebt">{{value}}</span>
               </a-tooltip>
               <a-tooltip title="暂未收款">
-                <span style="color:red" v-if="value>0 && !record.hasFinancialFlag">{{value}}</span>
+                <span style="color:red" v-if="value>0 && value===record.lastDebt">{{value}}</span>
               </a-tooltip>
               <span v-if="value===0">{{value}}</span>
             </template>
@@ -247,7 +263,11 @@
       BillDetail,
       BillExcelIframe,
       JEllipsis,
-      JDate
+      JDate,
+      VNodes: {
+        functional: true,
+        render: (h, ctx) => ctx.props.vnodes,
+      }
     },
     data () {
       return {
@@ -263,6 +283,7 @@
           linkNumber: "",
           accountId: undefined,
           hasDebt: undefined,
+          hasLastDebt: undefined,
           status: undefined,
           salesMan: undefined,
           remark: ""
@@ -280,7 +301,7 @@
         },
         // 默认索引
         defDataIndex:['action','organName','number','materialsList','operTimeStr','userName','materialCount','totalPrice','totalTaxLastMoney',
-          'needOutMoney','changeAmount','debt','status'],
+          'changeAmount','debt','lastDebt','status'],
         // 默认列
         defColumns: [
           {
@@ -327,6 +348,7 @@
           { title: '本次欠款', dataIndex: 'debt',width:80,
             scopedSlots: { customRender: 'customRenderDebt' }
           },
+          { title: '最终欠款', dataIndex: 'lastDebt',width:80},
           { title: '销售人员', dataIndex: 'salesManStr',width:120},
           { title: '备注', dataIndex: 'remark',width:200},
           { title: '状态', dataIndex: 'status', width: 80, align: "center",
@@ -338,6 +360,7 @@
           delete: "/depotHead/delete",
           deleteBatch: "/depotHead/deleteBatch",
           forceCloseBatch: "/depotHead/forceCloseBatch",
+          batchSetLastDebtUrl: "/depotHead/batchSetLastDebt",
           batchSetStatusUrl: "/depotHead/batchSetStatus"
         }
       }

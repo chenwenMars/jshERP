@@ -81,6 +81,7 @@ public class DepotHeadController extends BaseController {
         String type = StringUtil.getInfo(search, "type");
         String subType = StringUtil.getInfo(search, "subType");
         String hasDebt = StringUtil.getInfo(search, "hasDebt");
+        String hasLastDebt = StringUtil.getInfo(search, "hasLastDebt");
         String status = StringUtil.getInfo(search, "status");
         String purchaseStatus = StringUtil.getInfo(search, "purchaseStatus");
         String number = StringUtil.getInfo(search, "number");
@@ -95,7 +96,7 @@ public class DepotHeadController extends BaseController {
         Long accountId = StringUtil.parseStrLong(StringUtil.getInfo(search, "accountId"));
         String salesMan = StringUtil.getInfo(search, "salesMan");
         String remark = StringUtil.getInfo(search, "remark");
-        List<DepotHeadVo4List> list = depotHeadService.select(type, subType, hasDebt, status, purchaseStatus, number, linkApply, linkNumber,
+        List<DepotHeadVo4List> list = depotHeadService.select(type, subType, hasDebt, hasLastDebt, status, purchaseStatus, number, linkApply, linkNumber,
                 beginTime, endTime, materialParam, organId, creator, depotId, accountId, salesMan, remark);
         return getDataTable(list);
     }
@@ -135,6 +136,32 @@ public class DepotHeadController extends BaseController {
         Map<String, Object> objectMap = new HashMap<>();
         String ids = jsonObject.getString("ids");
         int res = depotHeadService.batchForceClosePurchase(ids, request);
+        if(res > 0) {
+            return returnJson(objectMap, ErpInfo.OK.name, ErpInfo.OK.code);
+        } else {
+            return returnJson(objectMap, ErpInfo.ERROR.name, ErpInfo.ERROR.code);
+        }
+    }
+
+    @PostMapping(value = "/batchSetLastDebt")
+    @ApiOperation(value = "修正最终欠款")
+    public String batchSetLastDebt(@RequestBody JSONObject jsonObject, HttpServletRequest request)throws Exception {
+        Map<String, Object> objectMap = new HashMap<>();
+        String ids = jsonObject.getString("ids");
+        int res = depotHeadService.batchSetLastDebt(ids, request);
+        if(res > 0) {
+            return returnJson(objectMap, ErpInfo.OK.name, ErpInfo.OK.code);
+        } else {
+            return returnJson(objectMap, ErpInfo.ERROR.name, ErpInfo.ERROR.code);
+        }
+    }
+
+    @PostMapping(value = "/batchSetLastDeposit")
+    @ApiOperation(value = "修正剩余订金")
+    public String batchSetLastDeposit(@RequestBody JSONObject jsonObject, HttpServletRequest request)throws Exception {
+        Map<String, Object> objectMap = new HashMap<>();
+        String ids = jsonObject.getString("ids");
+        int res = depotHeadService.batchSetLastDeposit(ids, request);
         if(res > 0) {
             return returnJson(objectMap, ErpInfo.OK.name, ErpInfo.OK.code);
         } else {
@@ -677,8 +704,7 @@ public class DepotHeadController extends BaseController {
                            @RequestParam("pageSize") Integer pageSize,
                            HttpServletRequest request)throws Exception {
         Map<String, Object> objectMap = new HashMap<>();
-        String organIdStr = StringUtil.getInfo(search, "organId");
-        Long organId = Long.parseLong(organIdStr);
+        Long organId = StringUtil.parseStrLong(StringUtil.getInfo(search, "organId"));
         String materialParam = StringUtil.getInfo(search, "materialParam");
         String number = StringUtil.getInfo(search, "number");
         String beginTime = StringUtil.getInfo(search, "beginTime");
@@ -806,6 +832,23 @@ public class DepotHeadController extends BaseController {
         JSONObject result = ExceptionConstants.standardSuccess();
         String ids = jsonObject.getString("ids");
         depotHeadService.batchAddDepotHeadAndDetail(ids, request);
+        return result;
+    }
+
+    /**
+     * 快捷编辑单据
+     * @param jsonObject
+     * @param request
+     * @return
+     * @throws Exception
+     */
+    @PutMapping(value = "/quickEdit")
+    @ApiOperation(value = "快捷编辑单据")
+    public Object quickEdit(@RequestBody JSONObject jsonObject, HttpServletRequest request) throws Exception{
+        JSONObject result = ExceptionConstants.standardSuccess();
+        Long id = jsonObject.getLong("id");
+        String remark = jsonObject.getString("remark");
+        depotHeadService.quickEditDepotHead(id, remark, request);
         return result;
     }
 }

@@ -28,6 +28,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.*;
 
 @Service
@@ -70,9 +71,14 @@ public class MaterialService {
     private MaterialExtendService materialExtendService;
     @Resource
     private SystemConfigService systemConfigService;
+    @Resource
+    private RoleService roleService;
 
     @Value(value="${file.uploadType}")
     private Long fileUploadType;
+
+    @Value(value="${file.exportTmp}")
+    private String fileExportTmp;
 
     private static final Integer EXPORT_LIMIT = 10000;
 
@@ -414,6 +420,9 @@ public class MaterialService {
             if(StringUtil.isNotEmpty(item.getColor())) {
                 sb.append("(").append(item.getColor()).append(")");
             }
+            if(StringUtil.isNotEmpty(item.getBrand())) {
+                sb.append("(").append(item.getBrand()).append(")");
+            }
             if(StringUtil.isNotEmpty(item.getUnit())) {
                 sb.append("(").append(item.getUnit()).append(")");
             }
@@ -482,7 +491,7 @@ public class MaterialService {
         List<MaterialVo4Unit> dataList = materialMapperEx.exportExcel(materialParam, color, materialOther, weight, expiryNum, enabled, enableSerialNumber,
                 enableBatchNumber, remark, idList);
         if (null != dataList && dataList.size() > EXPORT_LIMIT) {
-            File file = ExcelUtils.exportObjectsOneSheet(title, "单次导出条数超出限制（1万条）", new String[0], title, new ArrayList<>());
+            File file = ExcelUtils.exportObjectsOneSheet(fileExportTmp, title, "单次导出条数超出限制（1万条）", new String[0], title, new ArrayList<>());
             ExcelUtils.downloadExcel(file, file.getName(), response);
             return;
         }
@@ -557,7 +566,7 @@ public class MaterialService {
                 objects.add(objs);
             }
         }
-        File file = ExcelUtils.exportObjectsOneSheet(title, "*导入时本行内容请勿删除，切记！", names, title, objects);
+        File file = ExcelUtils.exportObjectsOneSheet(fileExportTmp, title, "*导入时本行内容请勿删除，切记！", names, title, objects);
         ExcelUtils.downloadExcel(file, file.getName(), response);
     }
 
@@ -569,10 +578,10 @@ public class MaterialService {
             //文件扩展名只能为xls
             String fileName = file.getOriginalFilename();
             if(StringUtil.isNotEmpty(fileName)) {
-                String fileExt = fileName.substring(fileName.indexOf(".")+1);
+                String fileExt = fileName.substring(fileName.lastIndexOf(".")+1);
                 if(!"xls".equals(fileExt)) {
-                    throw new BusinessRunTimeException(ExceptionConstants.MATERIAL_EXTENSION_ERROR_CODE,
-                            ExceptionConstants.MATERIAL_EXTENSION_ERROR_MSG);
+                    throw new BusinessRunTimeException(ExceptionConstants.FILE_EXTENSION_ERROR_CODE,
+                            ExceptionConstants.FILE_EXTENSION_ERROR_MSG);
                 }
             }
             Workbook workbook = Workbook.getWorkbook(file.getInputStream());
@@ -1329,13 +1338,14 @@ public class MaterialService {
     public String getMaxBarCode() {
         List<String> barCodeOldList = materialMapperEx.getBarCodeList();
         // 使用 Stream API 处理条码列表
-        OptionalLong maxBarcode = barCodeOldList.stream()
+        // 使用 BigInteger 处理可能的大数字
+        Optional<BigInteger> maxBarcode = barCodeOldList.stream()
                 .filter(StringUtil::isNumeric)   // 过滤掉非数字条码
-                .mapToLong(Long::parseLong)      // 将字符串转换为 Long 类型
-                .max();                          // 获取最大值
+                .map(BigInteger::new)            // 使用 BigInteger 构造函数
+                .max(Comparator.naturalOrder()); // 获取最大值
         // 如果存在最大值，返回它；否则返回 1000L
-        Long maxBarCodeOld = maxBarcode.orElse(1000L);
-        return maxBarCodeOld + "";
+        BigInteger maxBarCodeOld = maxBarcode.orElse(new BigInteger("1000"));
+        return maxBarCodeOld.toString();
     }
 
     public List<String> getMaterialNameList() {
@@ -1356,9 +1366,9 @@ public class MaterialService {
         return materialMapperEx.getInitialStockWithMaterial(depotList);
     }
 
-    public List<MaterialVo4Unit> getListWithStock(List<Long> depotList, List<Long> idList, String position, String materialParam,
+    public List<MaterialVo4Unit> getListWithStock(String priceLimit, List<Long> depotList, List<Long> idList, String position, String materialParam,
                                                   Boolean moveAvgPriceFlag, Integer zeroStock, String column, String order,
-                                                  Integer offset, Integer rows) throws Exception {
+                                                  Integer offset, Integer rows, HttpServletRequest request) throws Exception {
         Map<Long, BigDecimal> initialStockMap = new HashMap<>();
         List<MaterialInitialStockWithMaterial> initialStockList = getInitialStockWithMaterial(depotList);
         for (MaterialInitialStockWithMaterial mism: initialStockList) {
@@ -1370,6 +1380,8 @@ public class MaterialService {
                 item.setPurchaseDecimal(item.getCurrentUnitPrice());
                 item.setCurrentStockPrice(item.getCurrentStockMovePrice());
             }
+            item.setPurchaseDecimal(roleService.parseStockPriceByLimit(item.getPurchaseDecimal(), priceLimit, request));
+            item.setCurrentStockPrice(roleService.parseStockPriceByLimit(item.getCurrentStockPrice(), priceLimit, request));
             item.setUnitName(null!=item.getUnitId()?item.getUnitName() + "[多单位]":item.getUnitName());
             item.setInitialStock(null!=initialStockMap.get(item.getId())?initialStockMap.get(item.getId()):BigDecimal.ZERO);
             item.setBigUnitStock(getBigUnitStock(item.getCurrentStock(), item.getUnitId()));
@@ -1381,12 +1393,15 @@ public class MaterialService {
         return dataList;
     }
 
-    public int getListWithStockCount(List<Long> depotList, List<Long> idList, String position, String materialParam, Integer zeroStock) {
+    public int getListWithStockCount(String priceLimit, List<Long> depotList, List<Long> idList, String position, String materialParam, Integer zeroStock) {
         return materialMapperEx.getListWithStockCount(depotList, idList, position, materialParam, zeroStock);
     }
 
-    public MaterialVo4Unit getTotalStockAndPrice(List<Long> depotList, List<Long> idList, String position, String materialParam) {
-        return materialMapperEx.getTotalStockAndPrice(depotList, idList, position, materialParam);
+    public MaterialVo4Unit getTotalStockAndPrice(String priceLimit, List<Long> depotList, List<Long> idList, String position, String materialParam, HttpServletRequest request) throws Exception {
+        MaterialVo4Unit res = materialMapperEx.getTotalStockAndPrice(depotList, idList, position, materialParam);
+        res.setCurrentStockMovePrice(roleService.parseStockPriceByLimit(res.getCurrentStockMovePrice(), priceLimit, request));
+        res.setCurrentStockPrice(roleService.parseStockPriceByLimit(res.getCurrentStockPrice(), priceLimit, request));
+        return res;
     }
 
     /**
@@ -1430,10 +1445,9 @@ public class MaterialService {
     }
 
     @Transactional(value = "transactionManager", rollbackFor = Exception.class)
-    public int batchSetMaterialCurrentStock(String ids) throws Exception {
+    public int batchSetMaterialCurrentStock(String ids, List<Depot> depotList) throws Exception {
         int res = 0;
         List<Long> idList = StringUtil.strToLongList(ids);
-        List<Depot> depotList = depotService.getAllList();
         for(Long mId: idList) {
             BigDecimal currentUnitPrice = materialCurrentStockMapperEx.getCurrentUnitPriceByMId(mId);
             for(Depot depot: depotList) {
@@ -1497,7 +1511,7 @@ public class MaterialService {
         }
     }
 
-    public List<MaterialDepotStock> getMaterialDepotStock(String depotIds, Long mId) throws Exception {
+    public List<MaterialDepotStock> getMaterialDepotStock(String depotIds, Long mId, HttpServletRequest request) throws Exception {
         String[] depotIdArr = null;
         if(StringUtil.isNotEmpty(depotIds)) {
             depotIdArr = depotIds.split(",");
@@ -1505,6 +1519,8 @@ public class MaterialService {
         boolean moveAvgPriceFlag = systemConfigService.getMoveAvgPriceFlag();
         List<Long> depotList = depotService.parseDepotListByArr(depotIdArr);
         Long[] depotIdArray = StringUtil.listToLongArray(depotList);
+        Long userId = userService.getUserId(request);
+        String priceLimit = userService.getRoleTypeByUserId(userId).getPriceLimit();
         PageUtils.startPage();
         List<MaterialDepotStock> list = materialMapperEx.getMaterialDepotStock(depotIdArray, mId);
         for (MaterialDepotStock item: list) {
@@ -1513,6 +1529,7 @@ public class MaterialService {
             } else {
                 item.setUnitPrice(item.getPurchaseDecimal());
             }
+            item.setUnitPrice(roleService.parseStockPriceByLimit(item.getUnitPrice(), priceLimit, request));
             if(item.getCurrentNumber()!=null && item.getUnitPrice()!=null ) {
                 item.setAllPrice(item.getCurrentNumber().multiply(item.getUnitPrice()));
             }

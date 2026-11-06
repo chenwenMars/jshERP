@@ -45,6 +45,9 @@ export const BillModalMixin = {
       checkFlag: true,
       //零收付款的场景开关
       zeroChangeAmountFlag: false,
+      //商品价格含税开关
+      materialPriceTaxFlag: false,
+      setTimeFlag: null,
       validatorRules:{
         price:{
           rules: [
@@ -89,7 +92,7 @@ export const BillModalMixin = {
       const key = window.event.keyCode ? window.event.keyCode : window.event.which
       if (key === 83 && e.ctrlKey) {
         //保存 CTRL+S
-        this.handleOk()
+        this.handleOkOnly()
         e.preventDefault()
       }
     },
@@ -111,6 +114,10 @@ export const BillModalMixin = {
               if(item.isDefault){
                 this.form.setFieldsValue({'accountId': item.id})
               }
+            }
+            //数据从前一个页面带过来的情况
+            if(this.transferParam && this.transferParam.accountId) {
+              this.form.setFieldsValue({'accountId': this.transferParam.accountId})
             }
           }
         })
@@ -185,6 +192,7 @@ export const BillModalMixin = {
           this.purchaseBySaleFlag = res.data.purchaseBySaleFlag==='1'?true:false
           this.inOutManageFlag = res.data.inOutManageFlag==='1'?true:false
           this.zeroChangeAmountFlag = res.data.zeroChangeAmountFlag==='1'?true:false
+          this.materialPriceTaxFlag = res.data.materialPriceTaxFlag==='1'?true:false
           if(res.data.auditPrintFlag==='1') {
             if(this.model.status === '0' || this.model.status === '9') {
               this.isShowPrintBtn = false
@@ -199,7 +207,7 @@ export const BillModalMixin = {
     },
     initSupplier(isChecked) {
       let that = this;
-      findBySelectSup({}).then((res)=>{
+      findBySelectSup({organId: this.model.organId, limit:1}).then((res)=>{
         if(res) {
           that.supList = res
           if(isChecked && res.length>0) {
@@ -210,7 +218,7 @@ export const BillModalMixin = {
     },
     initCustomer(isChecked) {
       let that = this;
-      findBySelectCus({}).then((res)=>{
+      findBySelectCus({organId: this.model.organId, limit:1}).then((res)=>{
         if(res) {
           that.cusList = res
           if(isChecked && res.length>0) {
@@ -221,7 +229,7 @@ export const BillModalMixin = {
     },
     initRetail(isChecked) {
       let that = this;
-      findBySelectRetail({}).then((res)=>{
+      findBySelectRetail({organId: this.model.organId, limit:1}).then((res)=>{
         if(res) {
           that.retailList = res
           if(isChecked && res.length>0) {
@@ -278,6 +286,45 @@ export const BillModalMixin = {
           })
         }
       })
+    },
+    handleSearchSupplier(value) {
+      let that = this
+      if(this.setTimeFlag != null){
+        clearTimeout(this.setTimeFlag);
+      }
+      this.setTimeFlag = setTimeout(()=>{
+        findBySelectSup({key: value, limit:1}).then((res) => {
+          if(res) {
+            that.supList = res;
+          }
+        })
+      },500)
+    },
+    handleSearchCustomer(value) {
+      let that = this
+      if(this.setTimeFlag != null){
+        clearTimeout(this.setTimeFlag);
+      }
+      this.setTimeFlag = setTimeout(()=>{
+        findBySelectCus({key: value, limit:1}).then((res) => {
+          if(res) {
+            that.cusList = res;
+          }
+        })
+      },500)
+    },
+    handleSearchRetail(value) {
+      let that = this
+      if(this.setTimeFlag != null){
+        clearTimeout(this.setTimeFlag);
+      }
+      this.setTimeFlag = setTimeout(()=>{
+        findBySelectRetail({key: value, limit:1}).then((res) => {
+          if(res) {
+            that.retailList = res;
+          }
+        })
+      },500)
     },
     handleManyAccount(){
       this.selectAccount(0)
@@ -460,6 +507,9 @@ export const BillModalMixin = {
                     let mObj = this.parseInfoToObj(mInfo)
                     mObj.depotId = mInfo.depotId
                     mObj.stock = mInfo.stock
+                    mObj.snList = ''
+                    mObj.batchNumber = ''
+                    mObj.expirationDate = ''
                     mArr.push(mObj)
                   }
                   let allPriceTotal = 0
@@ -494,6 +544,9 @@ export const BillModalMixin = {
                     this.changeColumnShow(mInfo)
                     let mInfoEx = this.parseInfoToObj(mInfo)
                     mInfoEx.stock = res.data.stock
+                    mInfoEx.snList = ''
+                    mInfoEx.batchNumber = ''
+                    mInfoEx.expirationDate = ''
                     let mObj = {
                       rowKey: row.id,
                       values: mInfoEx
@@ -520,16 +573,22 @@ export const BillModalMixin = {
             taxRate = row.taxRate-0 //税率
             unitPrice = row.unitPrice-0 //单价
             allPrice = (unitPrice*operNumber).toFixed(2)-0
-            taxMoney =((taxRate*0.01)*allPrice).toFixed(2)-0
-            taxLastMoney = (allPrice + taxMoney).toFixed(2)-0
+            if(this.materialPriceTaxFlag) {
+              let realAllPrice = (allPrice/(1+taxRate*0.01)).toFixed(2)-0
+              taxMoney = (realAllPrice*taxRate*0.01).toFixed(2)-0
+              taxLastMoney = allPrice
+            } else {
+              taxMoney =((taxRate*0.01)*allPrice).toFixed(2)-0
+              taxLastMoney = (allPrice + taxMoney).toFixed(2)-0
+            }
             target.setValues([{rowKey: row.id, values: {operNumber: operNumber, allPrice: allPrice, taxMoney: taxMoney, taxLastMoney: taxLastMoney}}])
             target.recalcAllStatisticsColumns()
             that.autoChangePrice(target)
           }
           break;
         case "batchNumber":
-          //只针对销售出库、采购退货、其它出库
-          if(this.prefixNo === 'XSCK' || this.prefixNo === 'CGTH' || this.prefixNo === 'QTCK') {
+          //只针对零售出库、销售出库、采购退货、其它出库
+          if(this.prefixNo === 'LSCK' || this.prefixNo === 'XSCK' || this.prefixNo === 'CGTH' || this.prefixNo === 'QTCK') {
             batchNumber = value
             let depotItemId = ''
             if(this.model.id) {
@@ -558,8 +617,14 @@ export const BillModalMixin = {
                   taxRate = row.taxRate-0 //税率
                   unitPrice = row.unitPrice-0 //单价
                   allPrice = (unitPrice*operNumber).toFixed(2)-0
-                  taxMoney =((taxRate*0.01)*allPrice).toFixed(2)-0
-                  taxLastMoney = (allPrice + taxMoney).toFixed(2)-0
+                  if(this.materialPriceTaxFlag) {
+                    let realAllPrice = (allPrice/(1+taxRate*0.01)).toFixed(2)-0
+                    taxMoney = (realAllPrice*taxRate*0.01).toFixed(2)-0
+                    taxLastMoney = allPrice
+                  } else {
+                    taxMoney =((taxRate*0.01)*allPrice).toFixed(2)-0
+                    taxLastMoney = (allPrice + taxMoney).toFixed(2)-0
+                  }
                   target.setValues([{rowKey: row.id, values: {expirationDate: info.expirationDateStr, operNumber: operNumber,
                       allPrice: allPrice, taxMoney: taxMoney, taxLastMoney: taxLastMoney}}])
                   target.recalcAllStatisticsColumns()
@@ -574,8 +639,14 @@ export const BillModalMixin = {
           taxRate = row.taxRate-0 //税率
           unitPrice = row.unitPrice-0 //单价
           allPrice = (unitPrice*operNumber).toFixed(2)-0
-          taxMoney =((taxRate*0.01)*allPrice).toFixed(2)-0
-          taxLastMoney = (allPrice + taxMoney).toFixed(2)-0
+          if(this.materialPriceTaxFlag) {
+            let realAllPrice = (allPrice/(1+taxRate*0.01)).toFixed(2)-0
+            taxMoney = (realAllPrice*taxRate*0.01).toFixed(2)-0
+            taxLastMoney = allPrice
+          } else {
+            taxMoney =((taxRate*0.01)*allPrice).toFixed(2)-0
+            taxLastMoney = (allPrice + taxMoney).toFixed(2)-0
+          }
           target.setValues([{rowKey: row.id, values: {allPrice: allPrice, taxMoney: taxMoney, taxLastMoney: taxLastMoney}}])
           target.recalcAllStatisticsColumns()
           that.autoChangePrice(target)
@@ -585,8 +656,14 @@ export const BillModalMixin = {
           unitPrice = value-0 //单价
           taxRate = row.taxRate-0 //税率
           allPrice = (unitPrice*operNumber).toFixed(2)-0
-          taxMoney =((taxRate*0.01)*allPrice).toFixed(2)-0
-          taxLastMoney = (allPrice + taxMoney).toFixed(2)-0
+          if(this.materialPriceTaxFlag) {
+            let realAllPrice = (allPrice/(1+taxRate*0.01)).toFixed(2)-0
+            taxMoney = (realAllPrice*taxRate*0.01).toFixed(2)-0
+            taxLastMoney = allPrice
+          } else {
+            taxMoney =((taxRate*0.01)*allPrice).toFixed(2)-0
+            taxLastMoney = (allPrice + taxMoney).toFixed(2)-0
+          }
           target.setValues([{rowKey: row.id, values: {allPrice: allPrice, taxMoney: taxMoney, taxLastMoney: taxLastMoney}}])
           target.recalcAllStatisticsColumns()
           that.autoChangePrice(target)
@@ -596,8 +673,14 @@ export const BillModalMixin = {
           taxRate = row.taxRate-0 //税率
           allPrice = value-0
           unitPrice = (allPrice/operNumber).toFixed(4)-0 //单价
-          taxMoney =((taxRate*0.01)*allPrice).toFixed(2)-0
-          taxLastMoney = (allPrice + taxMoney).toFixed(2)-0
+          if(this.materialPriceTaxFlag) {
+            let realAllPrice = (allPrice/(1+taxRate*0.01)).toFixed(2)-0
+            taxMoney = (realAllPrice*taxRate*0.01).toFixed(2)-0
+            taxLastMoney = allPrice
+          } else {
+            taxMoney =((taxRate*0.01)*allPrice).toFixed(2)-0
+            taxLastMoney = (allPrice + taxMoney).toFixed(2)-0
+          }
           target.setValues([{rowKey: row.id, values: {unitPrice: unitPrice, taxMoney: taxMoney, taxLastMoney: taxLastMoney}}])
           target.recalcAllStatisticsColumns()
           that.autoChangePrice(target)
@@ -607,8 +690,14 @@ export const BillModalMixin = {
           allPrice = row.allPrice-0
           unitPrice = row.unitPrice-0
           taxRate = value-0 //税率
-          taxMoney =((taxRate*0.01)*allPrice).toFixed(2)-0
-          taxLastMoney = (allPrice + taxMoney).toFixed(2)-0
+          if(this.materialPriceTaxFlag) {
+            let realAllPrice = (allPrice/(1+taxRate*0.01)).toFixed(2)-0
+            taxMoney = (realAllPrice*taxRate*0.01).toFixed(2)-0
+            taxLastMoney = allPrice
+          } else {
+            taxMoney =((taxRate*0.01)*allPrice).toFixed(2)-0
+            taxLastMoney = (allPrice + taxMoney).toFixed(2)-0
+          }
           target.setValues([{rowKey: row.id, values: {taxMoney: taxMoney, taxLastMoney: taxLastMoney}}])
           target.recalcAllStatisticsColumns()
           that.autoChangePrice(target)
@@ -617,15 +706,27 @@ export const BillModalMixin = {
           operNumber = row.operNumber-0 //数量
           taxLastMoney = value-0
           taxRate = row.taxRate-0 //税率
-          if(taxRate) {
-            unitPrice = (taxLastMoney/operNumber/(1+taxRate*0.01)).toFixed(4)-0
-            allPrice = (unitPrice*operNumber).toFixed(2)-0
-            taxMoney =(taxLastMoney-allPrice).toFixed(2)-0
-          } else {
-            //税率为0的情况，特殊处理
+          if(this.materialPriceTaxFlag) {
             allPrice = taxLastMoney
-            unitPrice = (allPrice/operNumber).toFixed(4)-0 //单价
-            taxMoney = 0
+            unitPrice = (taxLastMoney/operNumber).toFixed(4)-0
+            if(taxRate) {
+              let realAllPrice = (allPrice/(1+taxRate*0.01)).toFixed(2)-0
+              taxMoney = (realAllPrice*taxRate*0.01).toFixed(2)-0
+            } else {
+              //税率为0的情况，特殊处理
+              taxMoney = 0
+            }
+          } else {
+            if(taxRate) {
+              unitPrice = (taxLastMoney/operNumber/(1+taxRate*0.01)).toFixed(4)-0
+              allPrice = (unitPrice*operNumber).toFixed(2)-0
+              taxMoney =(taxLastMoney-allPrice).toFixed(2)-0
+            } else {
+              //税率为0的情况，特殊处理
+              allPrice = taxLastMoney
+              unitPrice = (allPrice/operNumber).toFixed(4)-0 //单价
+              taxMoney = 0
+            }
           }
           target.setValues([{rowKey: row.id, values: {unitPrice: unitPrice, allPrice: allPrice, taxMoney: taxMoney}}])
           target.recalcAllStatisticsColumns()
@@ -651,9 +752,9 @@ export const BillModalMixin = {
         operNumber: 1,
         unitPrice: mInfo.billPrice,
         allPrice: mInfo.billPrice,
-        taxRate: 0,
-        taxMoney: 0,
-        taxLastMoney: mInfo.billPrice
+        taxRate: mInfo.taxRate,
+        taxMoney: mInfo.taxMoney,
+        taxLastMoney: mInfo.taxLastMoney
       }
     },
     //使得型号、颜色、扩展信息、sku等为隐藏
@@ -862,8 +963,14 @@ export const BillModalMixin = {
                       let taxRate = detail.taxRate-0 //税率
                       detail.unitPrice = mList[i].billPrice-0 //单价
                       detail.allPrice = (detail.unitPrice*detail.operNumber).toFixed(2)-0
-                      detail.taxMoney = ((taxRate*0.01)*detail.allPrice).toFixed(2)-0
-                      detail.taxLastMoney = (detail.allPrice + detail.taxMoney).toFixed(2)-0
+                      if(this.materialPriceTaxFlag) {
+                        let realAllPrice = (detail.allPrice/(1+taxRate*0.01)).toFixed(2)-0
+                        detail.taxMoney = (realAllPrice*taxRate*0.01).toFixed(2)-0
+                        detail.taxLastMoney = detail.allPrice
+                      } else {
+                        detail.taxMoney = ((taxRate*0.01)*detail.allPrice).toFixed(2)-0
+                        detail.taxLastMoney = (detail.allPrice + detail.taxMoney).toFixed(2)-0
+                      }
                     }
                   }
                   newDetailArr.push(detail)
@@ -942,8 +1049,14 @@ export const BillModalMixin = {
                     let taxRate = detail.taxRate-0 //税率
                     let unitPrice = detail.unitPrice-0 //单价
                     detail.allPrice = (unitPrice*detail.operNumber).toFixed(2)-0
-                    detail.taxMoney = ((taxRate*0.01)*detail.allPrice).toFixed(2)-0
-                    detail.taxLastMoney = (detail.allPrice + detail.taxMoney).toFixed(2)-0
+                    if(this.materialPriceTaxFlag) {
+                      let realAllPrice = (detail.allPrice/(1+taxRate*0.01)).toFixed(2)-0
+                      detail.taxMoney = (realAllPrice*taxRate*0.01).toFixed(2)-0
+                      detail.taxLastMoney = detail.allPrice
+                    } else {
+                      detail.taxMoney = ((taxRate*0.01)*detail.allPrice).toFixed(2)-0
+                      detail.taxLastMoney = (detail.allPrice + detail.taxMoney).toFixed(2)-0
+                    }
                     hasFinished = true
                     hasAdd = true
                   }
@@ -981,9 +1094,9 @@ export const BillModalMixin = {
                   item.operNumber = 1
                   item.unitPrice = mInfo.billPrice
                   item.allPrice = mInfo.billPrice
-                  item.taxRate = 0
-                  item.taxMoney = 0
-                  item.taxLastMoney = mInfo.billPrice
+                  item.taxRate = mInfo.taxRate
+                  item.taxMoney = mInfo.taxMoney
+                  item.taxLastMoney = mInfo.taxLastMoney
                   newDetailArr.push(item)
                 } else {
                   this.$message.warning('抱歉，此条码不存在商品信息！');
@@ -1050,12 +1163,28 @@ export const BillModalMixin = {
           discountLastMoney += data[i].taxLastMoney
           this.changeColumnShow(data[i])
         }
-        this.form.setFieldsValue({'discountLastMoney':discountLastMoney})
+        let changeAmount = 0
+        let debt = 0
+        if(this.prefixNo === 'CGRK' || this.prefixNo === 'XSCK') {
+          if(this.zeroChangeAmountFlag) {
+            changeAmount = 0
+            debt = discountLastMoney
+          } else {
+            changeAmount = discountLastMoney
+            debt = 0
+          }
+        }
+        this.form.setFieldsValue({'discountLastMoney':discountLastMoney, 'changeAmount':changeAmount, 'debt': debt})
       });
     },
     //保存并审核
     handleOkAndCheck() {
       this.billStatus = '1'
+      this.handleOk()
+    },
+    //仅保存
+    handleOkOnly() {
+      this.billStatus = '0'
       this.handleOk()
     },
     //发起流程

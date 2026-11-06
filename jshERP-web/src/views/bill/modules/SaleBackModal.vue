@@ -17,7 +17,7 @@
       <a-button v-if="billPrintFlag && isShowPrintBtn" @click="handlePrintPro('销售退货入库')">三联打印-新版</a-button>
       <a-button v-if="billPrintFlag && isShowPrintBtn" @click="handlePrint('销售退货入库')">三联打印</a-button>
       <a-button v-if="checkFlag && isCanCheck" :loading="confirmLoading" @click="handleOkAndCheck">保存并审核</a-button>
-      <a-button type="primary" :loading="confirmLoading" @click="handleOk">保存（Ctrl+S）</a-button>
+      <a-button type="primary" :loading="confirmLoading" @click="handleOkOnly">保存（Ctrl+S）</a-button>
       <!--发起多级审核-->
       <a-button v-if="!checkFlag" @click="handleWorkflow()" type="primary">提交流程</a-button>
     </template>
@@ -27,7 +27,7 @@
           <a-col :lg="6" :md="12" :sm="24">
             <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" label="客户">
               <a-select placeholder="请选择客户" v-decorator="[ 'organId', validatorRules.organId ]" :disabled="!rowCanEdit"
-                :dropdownMatchSelectWidth="false" showSearch optionFilterProp="children" @change="handleOrganChange">
+                :dropdownMatchSelectWidth="false" showSearch optionFilterProp="children" @change="handleOrganChange" @search="handleSearchCustomer">
                 <div slot="dropdownRender" slot-scope="menu">
                   <v-nodes :vnodes="menu" />
                   <a-divider style="margin: 4px 0;" />
@@ -108,7 +108,7 @@
           </a-col>
           <a-col :lg="6" :md="12" :sm="24">
             <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" label="退款优惠">
-              <a-input placeholder="请输入付款优惠" v-decorator.trim="[ 'discountMoney' ]" @change="onChangeDiscountMoney"/>
+              <a-input placeholder="请输入退款优惠" v-decorator.trim="[ 'discountMoney' ]" @change="onChangeDiscountMoney"/>
             </a-form-item>
           </a-col>
           <a-col :lg="6" :md="12" :sm="24">
@@ -193,12 +193,11 @@
   import { JEditableTableMixin } from '@/mixins/JEditableTableMixin'
   import { BillModalMixin } from '../mixins/BillModalMixin'
   import { getMpListShort, changeListFmtMinus, handleIntroJs } from '@/utils/util'
-  import { getAction } from '@/api/manage'
   import JSelectMultiple from '@/components/jeecg/JSelectMultiple'
   import JUpload from '@/components/jeecg/JUpload'
   import JDate from '@/components/jeecg/JDate'
   import Vue from 'vue'
-  import { getCurrentSystemConfig } from '@/api/api'
+  import { getCurrentSystemConfig, findBySelectCus } from '@/api/api'
   export default {
     name: "SaleBackModal",
     mixins: [JEditableTableMixin, BillModalMixin],
@@ -334,7 +333,7 @@
           this.$nextTick(() => {
             if(this.transferParam && this.transferParam.number) {
               let tp = this.transferParam
-              this.linkBillListOk(tp.list, tp.number, tp.organId, tp.discountMoney, tp.deposit, tp.remark, this.defaultDepotId, tp.accountId, tp.salesMan)
+              this.linkBillListOk(tp.list, tp.number, tp.organId, tp.discount, tp.deposit, tp.remark, this.defaultDepotId, tp.accountId, tp.salesMan)
             }
           })
         } else {
@@ -419,7 +418,7 @@
         this.$refs.linkBillList.show('出库', '销售', '客户', "1,2,3")
         this.$refs.linkBillList.title = "请选择销售出库"
       },
-      linkBillListOk(selectBillDetailRows, linkNumber, organId, discountMoney, deposit, remark, depotId, accountId, salesMan) {
+      linkBillListOk(selectBillDetailRows, linkNumber, organId, discount, deposit, remark, depotId, accountId, salesMan) {
         this.rowCanEdit = false
         this.materialTable.columns[1].type = FormTypes.normal
         this.changeFormTypes(this.materialTable.columns, 'preNumber', 1)
@@ -433,8 +432,14 @@
               info.operNumber = info.preNumber - info.finishNumber
               info.allPrice = info.operNumber * info.unitPrice-0
               let taxRate = info.taxRate-0
-              info.taxMoney = (info.allPrice*taxRate/100).toFixed(2)-0
-              info.taxLastMoney = (info.allPrice + info.taxMoney).toFixed(2)-0
+              if(this.materialPriceTaxFlag) {
+                let realAllPrice = (info.allPrice/(1+taxRate*0.01)).toFixed(2)-0
+                info.taxMoney = (realAllPrice*taxRate*0.01).toFixed(2)-0
+                info.taxLastMoney = info.allPrice
+              } else {
+                info.taxMoney = (info.allPrice*taxRate/100).toFixed(2)-0
+                info.taxLastMoney = (info.allPrice + info.taxMoney).toFixed(2)-0
+              }
             }
             info.linkId = info.id
             allTaxLastMoney += info.taxLastMoney
@@ -444,11 +449,16 @@
             }
           }
           this.materialTable.dataSource = listEx
+          if(listEx.length === 0) {
+            this.$nextTick(() => {
+              this.$message.warning('原单据的明细已经全部关联完成');
+            })
+          }
           ///给优惠后金额重新赋值
           allTaxLastMoney = allTaxLastMoney?allTaxLastMoney:0
-          let discount = 0
+          let discountMoney = 0
           if(allTaxLastMoney!==0) {
-            discount = (discountMoney/allTaxLastMoney*100).toFixed(2)-0
+            discountMoney = (discount/100*allTaxLastMoney).toFixed(2)-0
           }
           let discountLastMoney = (allTaxLastMoney - discountMoney).toFixed(2)-0
           this.$nextTick(() => {
@@ -461,6 +471,9 @@
               'changeAmount': discountLastMoney,
               'accountId': accountId,
               'remark': remark
+            })
+            findBySelectCus({organId: organId, limit:1}).then((res)=> {
+              this.cusList = res && Array.isArray(res) ? res : [];
             })
             getCurrentSystemConfig().then((res) => {
               if (res.code === 200 && res.data) {

@@ -44,7 +44,12 @@
               <a-row :gutter="24">
                 <a-col :md="6" :sm="24">
                   <a-form-item label="供应商" :labelCol="labelCol" :wrapperCol="wrapperCol">
-                    <a-select placeholder="请选择供应商" showSearch allow-clear optionFilterProp="children" v-model="queryParam.organId">
+                    <a-select placeholder="请选择供应商" showSearch allow-clear optionFilterProp="children" v-model="queryParam.organId" @search="handleSearchSupplier">
+                      <div slot="dropdownRender" slot-scope="menu">
+                        <v-nodes :vnodes="menu" />
+                        <a-divider style="margin: 4px 0;" />
+                        <div class="dropdown-btn" @mousedown="e => e.preventDefault()" @click="initSupplier(0)"><a-icon type="reload" /> 刷新列表</div>
+                      </div>
                       <a-select-option v-for="(item,index) in supList" :key="index" :value="item.id">
                         {{ item.supplier }}
                       </a-select-option>
@@ -71,6 +76,15 @@
                   </a-form-item>
                 </a-col>
                 <a-col :md="6" :sm="24">
+                  <a-form-item label="结算账户" :labelCol="labelCol" :wrapperCol="wrapperCol">
+                    <a-select placeholder="请选择结算账户" showSearch allow-clear optionFilterProp="children" v-model="queryParam.accountId">
+                      <a-select-option v-for="(item,index) in accountList" :key="index" :value="item.id">
+                        {{ item.name }}
+                      </a-select-option>
+                    </a-select>
+                  </a-form-item>
+                </a-col>
+                <a-col :md="6" :sm="24">
                   <a-form-item label="单据状态" :labelCol="labelCol" :wrapperCol="wrapperCol">
                     <a-select placeholder="请选择单据状态" allow-clear v-model="queryParam.status">
                       <a-select-option value="0">未审核</a-select-option>
@@ -94,12 +108,29 @@
         <div class="table-operator"  style="margin-top: 5px">
           <a-button v-if="btnEnableList.indexOf(1)>-1" @click="myHandleAdd" type="primary" icon="plus">新增</a-button>
           <a-button v-if="btnEnableList.indexOf(1)>-1" icon="delete" @click="batchDel">删除</a-button>
-          <a-button v-if="quickBtn.purchaseIn.indexOf(1)>-1 && btnEnableList.indexOf(1)>-1" icon="share-alt" @click="transferBill('转采购入库', quickBtn.purchaseIn)">转采购入库</a-button>
-          <a-tooltip title="可将状态是部分采购的单据强制完成">
-            <a-button v-if="btnEnableList.indexOf(1)>-1" icon="issues-close" @click="batchForceClose">强制结单</a-button>
-          </a-tooltip>
           <a-button v-if="checkFlag && btnEnableList.indexOf(2)>-1" icon="check" @click="batchSetStatus(1)">审核</a-button>
           <a-button v-if="checkFlag && btnEnableList.indexOf(7)>-1" icon="stop" @click="batchSetStatus(0)">反审核</a-button>
+          <a-button v-if="quickBtn.purchaseIn.indexOf(1)>-1 && btnEnableList.indexOf(1)>-1" icon="share-alt" @click="transferBill('转采购入库', quickBtn.purchaseIn)">转采购入库</a-button>
+          <a-dropdown>
+            <a-button>
+              更多操作 <a-icon type="down" />
+            </a-button>
+            <a-menu slot="overlay">
+              <a-menu-item v-if="btnEnableList.indexOf(1)>-1" @click="batchForceClose">
+                <a-tooltip title="可将状态是部分采购的单据强制完成">
+                  <a-icon type="issues-close" /><span>强制结单</span>
+                </a-tooltip>
+              </a-menu-item>
+              <a-divider v-if="btnEnableList.indexOf(1)>-1" style="margin: 4px 0;" />
+              <a-menu-item v-if="btnEnableList.indexOf(1)>-1" @click="batchSetLastDeposit">
+                <a-icon type="fund" /><span>修正剩余订金</span>
+              </a-menu-item>
+              <a-divider v-if="btnEnableList.indexOf(1)>-1" style="margin: 4px 0;" />
+              <a-menu-item v-if="btnEnableList.indexOf(1)>-1" @click="handleQuickEdit">
+                <a-icon type="edit" /><span>修改备注</span>
+              </a-menu-item>
+            </a-menu>
+          </a-dropdown>
           <a-button v-if="isShowExcel && btnEnableList.indexOf(3)>-1" icon="download" @click="handleExport">导出</a-button>
           <a-popover trigger="click" placement="right">
             <template slot="content">
@@ -188,6 +219,7 @@
         <purchase-in-modal ref="transferModalForm" @ok="modalFormOk" @close="modalFormClose"></purchase-in-modal>
         <bill-detail ref="modalDetail" @ok="modalFormOk" @close="modalFormClose"></bill-detail>
         <bill-excel-iframe ref="billExcelIframe" @ok="modalFormOk" @close="modalFormClose"></bill-excel-iframe>
+        <quick-edit-modal ref="quickEditModal" @ok="modalFormOk" @close="modalFormClose"></quick-edit-modal>
       </a-card>
     </a-col>
   </a-row>
@@ -198,11 +230,11 @@
   import PurchaseInModal from './modules/PurchaseInModal'
   import BillDetail from './dialog/BillDetail'
   import BillExcelIframe from '@/components/tools/BillExcelIframe'
+  import QuickEditModal from './dialog/QuickEditModal'
   import { JeecgListMixin } from '@/mixins/JeecgListMixin'
   import { BillListMixin } from './mixins/BillListMixin'
   import JEllipsis from '@/components/jeecg/JEllipsis'
   import JDate from '@/components/jeecg/JDate'
-  import Vue from 'vue'
   export default {
     name: "PurchaseOrderList",
     mixins:[JeecgListMixin,BillListMixin],
@@ -211,8 +243,13 @@
       PurchaseInModal,
       BillDetail,
       BillExcelIframe,
+      QuickEditModal,
       JEllipsis,
-      JDate
+      JDate,
+      VNodes: {
+        functional: true,
+        render: (h, ctx) => ctx.props.vnodes,
+      }
     },
     data () {
       return {
@@ -226,6 +263,7 @@
           depotId: undefined,
           linkApply: "",
           linkNumber: "",
+          accountId: undefined,
           creator: undefined,
           status: undefined,
           remark: ""
@@ -240,8 +278,8 @@
           offset: 1
         },
         // 默认索引
-        defDataIndex:['action','organName','number','materialsList','operTimeStr','userName','materialCount','totalPrice','totalTaxLastMoney',
-          'changeAmount','status'],
+        defDataIndex:['action','organName','number','materialsList','operTimeStr','userName','materialCount','totalPrice',
+          'totalTaxLastMoney','changeAmount','lastDeposit','status'],
         // 默认列
         defColumns: [
           {
@@ -283,6 +321,7 @@
           { title: '优惠后金额', dataIndex: 'discountLastMoney',width:100},
           { title: '结算账户', dataIndex: 'accountName',width:80},
           { title: '支付订金', dataIndex: 'changeAmount',width:80},
+          { title: '剩余订金', dataIndex: 'lastDeposit',width:80},
           { title: '备注', dataIndex: 'remark',width:200},
           { title: '状态', dataIndex: 'status', width: 80, align: "center",
             scopedSlots: { customRender: 'customRenderStatus' }
@@ -293,6 +332,7 @@
           delete: "/depotHead/delete",
           deleteBatch: "/depotHead/deleteBatch",
           forceCloseBatch: "/depotHead/forceCloseBatch",
+          batchSetLastDepositUrl: "/depotHead/batchSetLastDeposit",
           batchSetStatusUrl: "/depotHead/batchSetStatus"
         }
       }
@@ -301,6 +341,7 @@
       this.initSystemConfig()
       this.initSupplier()
       this.initUser()
+      this.initAccount()
       this.initQuickBtn()
       this.getDepotByCurrentUser()
     },

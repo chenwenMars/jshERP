@@ -241,7 +241,7 @@ public class FunctionController extends BaseController {
             if("admin".equals(userInfo.getLoginName())) {
                 funIdList = null;
             }
-            List<Function> dataListFun = functionService.findRoleFunction("0", funIdList);
+            List<Function> dataListFun = functionService.findRoleFunction("0", null);
             //开始拼接json数据
             JSONObject outer = new JSONObject();
             outer.put("id", 0);

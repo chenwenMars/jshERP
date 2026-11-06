@@ -57,9 +57,7 @@
                 <a>删除</a>
               </a-popconfirm>
               <a-divider type="vertical"/>
-              <a-popconfirm title="确定重置密码为123456吗?" @confirm="() => handleReset(record.id)">
-                <a>重置密码</a>
-              </a-popconfirm>
+              <a @click="handleResetModal(record)">重置密码</a>
             </span>
             <!-- 状态渲染模板 -->
             <template slot="customRenderFlag" slot-scope="status">
@@ -72,6 +70,7 @@
         <user-modal ref="modalForm" @ok="modalFormOk"></user-modal>
         <user-depot-modal ref="userDepotModal" @ok="modalFormOk"></user-depot-modal>
         <user-customer-modal ref="userCustomerModal" @ok="modalFormOk"></user-customer-modal>
+        <user-reset-modal ref="userResetModal" @ok="modalFormOk"></user-reset-modal>
       </a-card>
     </a-col>
   </a-row>
@@ -81,6 +80,7 @@
   import UserModal from './modules/UserModal'
   import UserDepotModal from './modules/UserDepotModal'
   import UserCustomerModal from './modules/UserCustomerModal'
+  import UserResetModal from './modules/UserResetModal'
   import {postAction} from '@/api/manage';
   import {getCurrentSystemConfig} from '@/api/api'
   import {JeecgListMixin} from '@/mixins/JeecgListMixin'
@@ -92,6 +92,7 @@
       UserModal,
       UserDepotModal,
       UserCustomerModal,
+      UserResetModal,
       JInput
     },
     data() {
@@ -129,7 +130,7 @@
           { title: '用户姓名', dataIndex: 'username', width: 100, align: "left"},
           { title: '用户类型', dataIndex: 'userType', width: 80, align: "left" },
           { title: '角色', dataIndex: 'roleName', width: 100, align: "left"},
-          { title: '机构', dataIndex: 'orgAbr', width: 100, align: "left"},
+          { title: '部门', dataIndex: 'orgAbr', width: 100, align: "left"},
           { title: '是否经理', dataIndex: 'leaderFlagStr', width: 60, align: "left"},
           { title: '电话号码', dataIndex: 'phonenum', width: 80, align: "left"},
           { title: '排序', dataIndex: 'userBlngOrgaDsplSeq', width: 40, align: "left"},
@@ -175,16 +176,9 @@
           this.$refs.modalForm.isReadOnly = true
         }
       },
-      handleReset(id) {
-        let that = this;
-        postAction(that.url.resetPwd, {id: id}).then((res) => {
-          if(res.code === 200){
-            that.$message.info('重置密码成功！');
-            that.loadData();
-          } else {
-            that.$message.warning(res.data.message);
-          }
-        })
+      handleResetModal(record) {
+        this.$refs.userResetModal.edit(record);
+        this.$refs.userResetModal.title = "请输入" + record.loginName + "的新密码";
       },
       btnSetDepot(record) {
         this.$refs.userDepotModal.edit(record);

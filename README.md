@@ -1,7 +1,8 @@
 # 项目总述
 * 很多人说管伊佳ERP（原名：华夏ERP，英文名：jshERP）是目前人气领先的国产ERP系统
 * 虽然目前只有进销存+财务+生产的功能，但后面将会推出ERP的全部功能，有兴趣请帮点一下 **Star** 哦
-* **官网地址：http://www.gyjerp.com  商务或技术交流，请联系QQ：752718920 微信：shenhua861584**
+* **官网地址：http://www.gyjerp.com  商务或技术交流，请联系微信：shenhua861584 或联系QQ：752718920**
+* 官方直播间-**抖音号：57553744996**  快来关注，作者本人在线视频直播，解答部署和使用等问题
 * 对物联网感兴趣的朋友欢迎关注我们的新开源系统：[管伊佳物联](https://gitee.com/jishenghua/gyj-iot)
 
 # 网络版介绍
@@ -29,15 +30,15 @@
 * 前端框架：Vue 2.7.16
 * UI框架: Ant-Design-Vue 1.5.2
 * 模板框架: Jeecg-Boot 2.2.0
-* 项目管理框架: Maven 3.2.3
+* 项目管理框架: Maven 3.3.9
 
 # 开发环境
 建议开发者使用以下环境，可以避免版本带来的问题
-* IDE: IntelliJ IDEA 2019.2+和JetBrains WebStorm 2019.3+
+* IDE: IntelliJ IDEA 2025.1.4.1
 * DB: Mysql 8.0.24
 * JDK: JDK 1.8
 * Node: Node 20.17.0
-* Maven: Maven 3.2.3+
+* Maven: Maven 3.3.9
 * Redis: 6.2.1
 * Nginx: 1.12.2 
 
@@ -86,5 +87,4 @@
 # 如何支持
 * 开源不易，坚持更难！如果您觉得管伊佳ERP不错，不用请作者喝咖啡。
 * 您可以将我们的云平台地址：https://cloud.gyjerp.com 发给您的家人或朋友，只要是开店的、办厂的、做批发的都可以用得上。
-* 您可以到我们自营的拼多多商城进行支持：https://mobile.pinduoduo.com/mall_page.html?mall_id=375313371
-* 以上将是对我们开源最大的支持！在此表示感谢！
+* 这将是对我们开源最大的支持！在此表示感谢！

@@ -294,7 +294,7 @@
   import JEditableTable from '@/components/jeecg/JEditableTable'
   import { FormTypes, getRefPromise, VALIDATE_NO_PASSED, validateFormAndTables } from '@/utils/JEditableTableUtil'
   import { changeNameToPinYin, checkMaterial, checkMaterialBarCode, getMaterialAttributeNameList, getMaterialAttributeValueListById, getMaxBarCode, queryMaterialCategoryTreeList } from '@/api/api'
-  import { autoJumpNextInput, handleIntroJs, removeByVal } from '@/utils/util'
+  import { autoJumpNextInput, handleIntroJs, removeByVal, addBigNumbers } from '@/utils/util'
   import { getAction, httpAction } from '@/api/manage'
   import JImageUpload from '@/components/jeecg/JImageUpload'
   import JDate from '@/components/jeecg/JDate'
@@ -578,11 +578,14 @@
           if(this.action === 'copyAdd') {
             getMaxBarCode({}).then((res)=> {
               if (res && res.code === 200) {
-                let maxBarCode = res.data.barCode - 0
+                let maxBarCode = res.data.barCode
                 let meTableData = []
                 for (let i = 0; i < tab.dataSource.length; i++) {
                   let meInfo = tab.dataSource[i]
-                  meInfo.barCode = maxBarCode + i + 1
+                  console.log(maxBarCode)
+                  console.log(addBigNumbers(maxBarCode, i+1))
+                  meInfo.barCode = addBigNumbers(maxBarCode, i+1)
+                  console.log(meInfo.barCode)
                   meTableData.push(meInfo)
                 }
                 tab.dataSource = meTableData
@@ -977,90 +980,85 @@
       },
       autoSkuList(skuOneData, skuTwoData, skuThreeData) {
         let unit = this.form.getFieldValue('unit')
-        if(unit) {
-          //计算多属性已经选择了几个
-          let skuArr = []
-          if(this.getNumByField('skuOne')) {
-            skuArr.push(skuOneData)
-          }
-          if(this.getNumByField('skuTwo')) {
-            skuArr.push(skuTwoData)
-          }
-          if(this.getNumByField('skuThree')) {
-            skuArr.push(skuThreeData)
-          }
-          let skuArrOne = skuArr[0]
-          let skuArrTwo = skuArr[1]
-          let skuArrThree = skuArr[2]
-          let count = this.getNumByField('skuOne') + this.getNumByField('skuTwo') + this.getNumByField('skuThree')
-          let barCodeSku = []
-          if(count === 1) {
-            let skuArrOnly = []
-            if(this.getNumByField('skuOne')) {
-              skuArrOnly = skuOneData
-            } else if(this.getNumByField('skuTwo')) {
-              skuArrOnly = skuTwoData
-            } else if(this.getNumByField('skuThree')) {
-              skuArrOnly = skuThreeData
-            }
-            for (let i = 0; i < skuArrOnly.length; i++) {
-              barCodeSku.push(skuArrOnly[i])
-            }
-          } else if(count === 2) {
-            for (let i = 0; i < skuArrOne.length; i++) {
-              for (let j = 0; j < skuArrTwo.length; j++) {
-                barCodeSku.push(skuArrOne[i] + '/' + skuArrTwo[j])
-              }
-            }
-          } else if(count === 3) {
-            for (let i = 0; i < skuArrOne.length; i++) {
-              for (let j = 0; j < skuArrTwo.length; j++) {
-                for (let k = 0; k < skuArrThree.length; k++) {
-                  barCodeSku.push(skuArrOne[i] + '/' + skuArrTwo[j] + '/' + skuArrThree[k])
-                }
-              }
-            }
-          }
-          let meTableData = []
-          getMaxBarCode({}).then((res)=>{
-            if(res && res.code===200) {
-              let k = 0
-              let maxBarCode = res.data.barCode-0
-              for (let i = 0; i < barCodeSku.length; i++) {
-                let currentBarCode = ''
-                let currentId = ''
-                let purchaseDecimal = ''
-                let commodityDecimal = ''
-                let wholesaleDecimal = ''
-                let lowDecimal = ''
-                for (let j = 0; j < this.meOldDataSource.length; j++) {
-                  if(barCodeSku[i] === this.meOldDataSource[j].sku) {
-                    currentBarCode = this.meOldDataSource[j].barCode
-                    currentId = this.meOldDataSource[j].id
-                    purchaseDecimal = this.meOldDataSource[j].purchaseDecimal
-                    commodityDecimal = this.meOldDataSource[j].commodityDecimal
-                    wholesaleDecimal = this.meOldDataSource[j].wholesaleDecimal
-                    lowDecimal = this.meOldDataSource[j].lowDecimal
-                  }
-                }
-                if(currentBarCode) {
-                  //此时说明该sku之前就存在
-                  meTableData.push({id: currentId, barCode: currentBarCode, commodityUnit: unit, sku: barCodeSku[i],
-                    purchaseDecimal: purchaseDecimal, commodityDecimal: commodityDecimal,
-                    wholesaleDecimal: wholesaleDecimal, lowDecimal: lowDecimal})
-                } else {
-                  k = k+1
-                  currentBarCode = maxBarCode + k
-                  meTableData.push({barCode: currentBarCode, commodityUnit: unit, sku: barCodeSku[i]})
-                }
-              }
-              this.meTable.dataSource = meTableData
-            }
-          })
-        } else {
-          this.$message.warning('请填写单位（注意不要勾选多单位，因为多属性商品不支持多单位）');
-          this.barCodeSwitch = false;
+        //计算多属性已经选择了几个
+        let skuArr = []
+        if(this.getNumByField('skuOne')) {
+          skuArr.push(skuOneData)
         }
+        if(this.getNumByField('skuTwo')) {
+          skuArr.push(skuTwoData)
+        }
+        if(this.getNumByField('skuThree')) {
+          skuArr.push(skuThreeData)
+        }
+        let skuArrOne = skuArr[0]
+        let skuArrTwo = skuArr[1]
+        let skuArrThree = skuArr[2]
+        let count = this.getNumByField('skuOne') + this.getNumByField('skuTwo') + this.getNumByField('skuThree')
+        let barCodeSku = []
+        if(count === 1) {
+          let skuArrOnly = []
+          if(this.getNumByField('skuOne')) {
+            skuArrOnly = skuOneData
+          } else if(this.getNumByField('skuTwo')) {
+            skuArrOnly = skuTwoData
+          } else if(this.getNumByField('skuThree')) {
+            skuArrOnly = skuThreeData
+          }
+          for (let i = 0; i < skuArrOnly.length; i++) {
+            barCodeSku.push(skuArrOnly[i])
+          }
+        } else if(count === 2) {
+          for (let i = 0; i < skuArrOne.length; i++) {
+            for (let j = 0; j < skuArrTwo.length; j++) {
+              barCodeSku.push(skuArrOne[i] + '/' + skuArrTwo[j])
+            }
+          }
+        } else if(count === 3) {
+          for (let i = 0; i < skuArrOne.length; i++) {
+            for (let j = 0; j < skuArrTwo.length; j++) {
+              for (let k = 0; k < skuArrThree.length; k++) {
+                barCodeSku.push(skuArrOne[i] + '/' + skuArrTwo[j] + '/' + skuArrThree[k])
+              }
+            }
+          }
+        }
+        let meTableData = []
+        getMaxBarCode({}).then((res)=>{
+          if(res && res.code===200) {
+            let k = 0
+            let maxBarCode = res.data.barCode
+            for (let i = 0; i < barCodeSku.length; i++) {
+              let currentBarCode = ''
+              let currentId = ''
+              let purchaseDecimal = ''
+              let commodityDecimal = ''
+              let wholesaleDecimal = ''
+              let lowDecimal = ''
+              for (let j = 0; j < this.meOldDataSource.length; j++) {
+                if(barCodeSku[i] === this.meOldDataSource[j].sku) {
+                  currentBarCode = this.meOldDataSource[j].barCode
+                  currentId = this.meOldDataSource[j].id
+                  purchaseDecimal = this.meOldDataSource[j].purchaseDecimal
+                  commodityDecimal = this.meOldDataSource[j].commodityDecimal
+                  wholesaleDecimal = this.meOldDataSource[j].wholesaleDecimal
+                  lowDecimal = this.meOldDataSource[j].lowDecimal
+                }
+              }
+              if(currentBarCode) {
+                //此时说明该sku之前就存在
+                meTableData.push({id: currentId, barCode: currentBarCode, commodityUnit: unit, sku: barCodeSku[i],
+                  purchaseDecimal: purchaseDecimal, commodityDecimal: commodityDecimal,
+                  wholesaleDecimal: wholesaleDecimal, lowDecimal: lowDecimal})
+              } else {
+                k = k+1
+                currentBarCode = addBigNumbers(maxBarCode, k)
+                meTableData.push({barCode: currentBarCode, commodityUnit: unit, sku: barCodeSku[i]})
+              }
+            }
+            this.meTable.dataSource = meTableData
+          }
+        })
       },
       getNumByField(field) {
         let num = 0
@@ -1080,13 +1078,13 @@
         if(this.maxBarCodeInfo === '') {
           getMaxBarCode({}).then((res)=> {
             if (res && res.code === 200) {
-              this.maxBarCodeInfo = res.data.barCode - 0
-              this.maxBarCodeInfo = this.maxBarCodeInfo + 1
+              this.maxBarCodeInfo = res.data.barCode
+              this.maxBarCodeInfo = addBigNumbers(this.maxBarCodeInfo, 1)
               target.setValues([{rowKey: row.id, values: {barCode: this.maxBarCodeInfo, commodityUnit: unit?unit:''}}])
             }
           })
         } else {
-          this.maxBarCodeInfo = this.maxBarCodeInfo + 1
+          this.maxBarCodeInfo = addBigNumbers(this.maxBarCodeInfo, 1)
           target.setValues([{rowKey: row.id, values: {barCode: this.maxBarCodeInfo, commodityUnit: unit?unit:''}}])
         }
       },

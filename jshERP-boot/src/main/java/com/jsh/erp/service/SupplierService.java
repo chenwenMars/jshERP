@@ -14,6 +14,7 @@ import jxl.Sheet;
 import jxl.Workbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -52,6 +53,9 @@ public class SupplierService {
     private UserBusinessService userBusinessService;
     @Resource
     private UserBusinessMapper userBusinessMapper;
+
+    @Value(value="${file.exportTmp}")
+    private String fileExportTmp;
 
     public Supplier getSupplier(long id)throws Exception {
         Supplier result=null;
@@ -288,43 +292,64 @@ public class SupplierService {
         }
     }
 
-    public List<Supplier> findBySelectCus()throws Exception {
-        SupplierExample example = new SupplierExample();
-        example.createCriteria().andTypeLike("客户").andEnabledEqualTo(true).andDeleteFlagNotEqualTo(BusinessConstants.DELETE_FLAG_DELETED);
-        example.setOrderByClause("sort asc, id desc");
+    public List<Supplier> findBySelectCus(String key, Long organId, Integer limit)throws Exception {
         List<Supplier> list=null;
         try{
-            list = supplierMapper.selectByExample(example);
+            list = supplierMapperEx.findByTypeAndKey("客户", key, limit);
+            if(organId!=null) {
+                list = addOrganToList(list, organId);
+            }
         }catch(Exception e){
             JshException.readFail(logger, e);
         }
         return list;
     }
 
-    public List<Supplier> findBySelectSup()throws Exception {
-        SupplierExample example = new SupplierExample();
-        example.createCriteria().andTypeLike("供应商").andEnabledEqualTo(true)
-                .andDeleteFlagNotEqualTo(BusinessConstants.DELETE_FLAG_DELETED);
-        example.setOrderByClause("sort asc, id desc");
+    public List<Supplier> findBySelectSup(String key, Long organId, Integer limit)throws Exception {
         List<Supplier> list=null;
         try{
-            list = supplierMapper.selectByExample(example);
+            list = supplierMapperEx.findByTypeAndKey("供应商", key, limit);
+            if(organId!=null) {
+                list = addOrganToList(list, organId);
+            }
         }catch(Exception e){
             JshException.readFail(logger, e);
         }
         return list;
     }
 
-    public List<Supplier> findBySelectRetail()throws Exception {
-        SupplierExample example = new SupplierExample();
-        example.createCriteria().andTypeLike("会员").andEnabledEqualTo(true)
-                .andDeleteFlagNotEqualTo(BusinessConstants.DELETE_FLAG_DELETED);
-        example.setOrderByClause("sort asc, id desc");
+    public List<Supplier> findBySelectRetail(String key, Long organId, Integer limit)throws Exception {
         List<Supplier> list=null;
         try{
-            list = supplierMapper.selectByExample(example);
+            list = supplierMapperEx.findByTypeAndKey("会员", key, limit);
+            if(organId!=null) {
+                list = addOrganToList(list, organId);
+            }
         }catch(Exception e){
             JshException.readFail(logger, e);
+        }
+        return list;
+    }
+
+    /**
+     * 给列表追加供应商信息
+     * @param list
+     * @param organId
+     * @return
+     */
+    public List<Supplier> addOrganToList(List<Supplier> list, Long organId) {
+        boolean isExist = false;
+        for(Supplier supplier: list) {
+            if(supplier.getId().equals(organId)) {
+                isExist = true;
+            }
+        }
+        if(!isExist) {
+            //列表里面不存在则追加
+            Supplier info = supplierMapperEx.getInfoById(organId);
+            if(info!=null) {
+                list.add(info);
+            }
         }
         return list;
     }
@@ -407,6 +432,22 @@ public class SupplierService {
         //本次收款
         map.put("eachAmount", eachAmount);
         return map;
+    }
+
+    /**
+     * 校验文件格式
+     * @param file
+     */
+    public void checkFileExt(MultipartFile file) {
+        //文件扩展名只能为xls
+        String fileName = file.getOriginalFilename();
+        if(StringUtil.isNotEmpty(fileName)) {
+            String fileExt = fileName.substring(fileName.lastIndexOf(".")+1);
+            if(!"xls".equals(fileExt)) {
+                throw new BusinessRunTimeException(ExceptionConstants.FILE_EXTENSION_ERROR_CODE,
+                        ExceptionConstants.FILE_EXTENSION_ERROR_MSG);
+            }
+        }
     }
 
     @Transactional(value = "transactionManager", rollbackFor = Exception.class)
@@ -575,7 +616,7 @@ public class SupplierService {
                     objects.add(objs);
                 }
             }
-            return ExcelUtils.exportObjectsOneSheet(title, "*导入时本行内容请勿删除，切记！", names, title, objects);
+            return ExcelUtils.exportObjectsOneSheet(fileExportTmp, title, "*导入时本行内容请勿删除，切记！", names, title, objects);
         }
     }
 
@@ -615,7 +656,7 @@ public class SupplierService {
                 objects.add(objs);
             }
         }
-        return ExcelUtils.exportObjectsOneSheet(title, "*导入时本行内容请勿删除，切记！", names, title, objects);
+        return ExcelUtils.exportObjectsOneSheet(fileExportTmp, title, "*导入时本行内容请勿删除，切记！", names, title, objects);
     }
 
     /**
@@ -678,5 +719,9 @@ public class SupplierService {
 
     public List<SupplierSimple> getAllCustomer() {
         return supplierMapperEx.getAllCustomer();
+    }
+
+    public Supplier getInfoByName(String name, String type) {
+        return supplierMapperEx.getInfoByName(name, type);
     }
 }

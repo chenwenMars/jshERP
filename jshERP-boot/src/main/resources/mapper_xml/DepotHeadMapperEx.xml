@@ -157,6 +157,12 @@
             and
             (ifnull(dh.discount_last_money,0)+ifnull(dh.other_money,0)-ifnull(dh.deposit,0)-abs(ifnull(dh.change_amount,0))=0)
         </if>
+        <if test="hasLastDebt != null and hasLastDebt ==1">
+            and ifnull(dh.last_debt,0)>0
+        </if>
+        <if test="hasLastDebt != null and hasLastDebt ==0">
+            and ifnull(dh.last_debt,0)=0
+        </if>
         <if test="salesMan != null and salesMan !=''">
             and FIND_IN_SET(#{salesMan}, dh.sales_man) > 0
         </if>
@@ -276,7 +282,12 @@
             order by oper_time desc,number desc
         </if>
         <if test="column != 'createTime'">
-            order by ${column} ${order}
+            <if test="column == 'barCode' or column == 'operNumber' or column == 'unitPrice' or column == 'allPrice' or column == 'taxMoney'">
+                order by ${column}
+                <if test="order == 'asc' or order == 'desc'">
+                    ${order}
+                </if>
+            </if>
         </if>
         <if test="offset != null and rows != null">
             limit #{offset},#{rows}
@@ -495,7 +506,12 @@
             order by materialId desc
         </if>
         <if test="column != 'createTime'">
-            order by ${column} ${order}
+            <if test="column == 'barCode' or column == 'numSum' or column == 'priceSum'">
+                order by ${column}
+                <if test="order == 'asc' or order == 'desc'">
+                    ${order}
+                </if>
+            </if>
         </if>
         <if test="offset != null and rows != null">
             limit #{offset},#{rows}
@@ -701,7 +717,12 @@
             order by oper_time desc,number desc
         </if>
         <if test="column != 'createTime'">
-            order by ${column} ${order}
+            <if test="column == 'barCode' or column == 'operNumber' or column == 'unitPrice' or column == 'allPrice'">
+                order by ${column}
+                <if test="order == 'asc' or order == 'desc'">
+                    ${order}
+                </if>
+            </if>
         </if>
         <if test="offset != null and rows != null">
             limit #{offset},#{rows}
@@ -1288,7 +1309,7 @@
         select count(s.id) from jsh_depot_head dh
         left join jsh_serial_number s on dh.number=s.in_bill_no
         where dh.number = #{number}
-        and (s.out_bill_no is not null or s.out_bill_no!='')
+        and (s.out_bill_no is not null and s.out_bill_no!='')
     </select>
 
     <select id="waitBillList" parameterType="com.jsh.erp.datasource.entities.DepotHeadExample" resultMap="ResultMapEx">
@@ -1423,6 +1444,13 @@
         and dh.type = '出库'
         and dh.sub_type = '零售'
         and dh.pay_type = '预付款'
+        and ifnull(dh.delete_flag,'0') !='1'
+    </select>
+
+    <select id="getAllDepositByLinkNumber" resultType="java.math.BigDecimal">
+        select ifnull(sum(dh.deposit),0) allDeposit from jsh_depot_head dh
+        where dh.link_number=#{linkNumber}
+        and (dh.sub_type = '销售' or dh.sub_type = '采购')
         and ifnull(dh.delete_flag,'0') !='1'
     </select>
 </mapper>

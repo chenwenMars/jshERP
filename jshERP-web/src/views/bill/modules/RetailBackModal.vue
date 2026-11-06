@@ -17,7 +17,7 @@
       <a-button v-if="billPrintFlag && isShowPrintBtn" @click="handlePrintPro('零售退货入库')">三联打印-新版</a-button>
       <a-button v-if="billPrintFlag && isShowPrintBtn" @click="handlePrint('零售退货入库')">三联打印</a-button>
       <a-button v-if="checkFlag && isCanCheck" :loading="confirmLoading" @click="handleOkAndCheck">保存并审核</a-button>
-      <a-button type="primary" :loading="confirmLoading" @click="handleOk">保存（Ctrl+S）</a-button>
+      <a-button type="primary" :loading="confirmLoading" @click="handleOkOnly">保存（Ctrl+S）</a-button>
       <!--发起多级审核-->
       <a-button v-if="!checkFlag" @click="handleWorkflow()" type="primary">提交流程</a-button>
     </template>
@@ -27,7 +27,7 @@
           <a-col :lg="6" :md="12" :sm="24">
             <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" label="会员卡号">
               <a-select placeholder="请选择会员卡号" v-decorator="[ 'organId' ]" :disabled="!rowCanEdit"
-                :dropdownMatchSelectWidth="false" showSearch optionFilterProp="children">
+                :dropdownMatchSelectWidth="false" showSearch optionFilterProp="children" @search="handleSearchRetail">
                 <div slot="dropdownRender" slot-scope="menu">
                   <v-nodes :vnodes="menu" />
                   <a-divider style="margin: 4px 0;" />
@@ -311,7 +311,7 @@
             this.form.setFieldsValue({'getAmount':0, 'backAmount':0})
             if(this.transferParam && this.transferParam.number) {
               let tp = this.transferParam
-              this.linkBillListOk(tp.list, tp.number, tp.organId, tp.discountMoney, tp.deposit, tp.remark)
+              this.linkBillListOk(tp.list, tp.number, tp.organId, tp.discount, tp.deposit, tp.remark)
             }
           })
         } else {
@@ -409,7 +409,7 @@
         this.$refs.linkBillList.show('出库', '零售', '会员', "1")
         this.$refs.linkBillList.title = "请选择零售出库"
       },
-      linkBillListOk(selectBillDetailRows, linkNumber, organId, discountMoney, deposit, remark) {
+      linkBillListOk(selectBillDetailRows, linkNumber, organId, discount, deposit, remark) {
         this.rowCanEdit = false
         this.materialTable.columns[1].type = FormTypes.normal
         this.changeFormTypes(this.materialTable.columns, 'preNumber', 1)

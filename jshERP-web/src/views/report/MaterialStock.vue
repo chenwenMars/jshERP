@@ -39,7 +39,8 @@
               </a-col>
               <a-col :md="7" :sm="24">
                 <a-form-item>
-                  <span>总库存：{{currentStock}}，总库存金额：{{currentStockPrice}}，总重量：{{currentWeight}}</span>
+                  <span v-if="showStockPrice">总库存：{{currentStock}}，总库存金额：{{currentStockPrice}}，总重量：{{currentWeight}}</span>
+                  <span v-if="!showStockPrice">总库存：{{currentStock}}，总重量：{{currentWeight}}</span>
                 </a-form-item>
               </a-col>
             </a-row>
@@ -110,9 +111,13 @@
               </a-popover>
             </span>
             <span slot="action" slot-scope="text, record">
-              <a @click="showMaterialInOutList(record)">{{record.id?'流水':''}}</a>
-              <a-divider type="vertical" />
+              <a @click="showMaterialInOutList(record)" v-if="showStockPrice">{{record.id?'流水':''}}</a>
+              <a-divider type="vertical" v-if="showStockPrice" />
               <a @click="showMaterialDepotStockList(record)">{{record.id?'分布':''}}</a>
+            </span>
+            <span slot="customRenderPurchaseDecimal" slot-scope="text, record">
+              <a v-if="moveAvgPriceFlag" @click="showStockPriceInOutList(record)">{{record.purchaseDecimal}}</a>
+              <template v-else>{{record.purchaseDecimal}}</template>
             </span>
             <template slot="customPic" slot-scope="text, record">
               <a-popover placement="right" trigger="click">
@@ -151,12 +156,14 @@
         <!-- table区域-end -->
         <material-in-out-list ref="materialInOutList" @ok="modalFormOk"></material-in-out-list>
         <material-depot-stock-list ref="materialDepotStockList" @ok="modalFormOk"></material-depot-stock-list>
+        <stock-price-in-out-list ref="stockPriceInOutList"></stock-price-in-out-list>
       </a-card>
     </a-col>
   </a-row>
 </template>
 <script>
   import MaterialInOutList from './modules/MaterialInOutList'
+  import StockPriceInOutList from './modules/StockPriceInOutList'
   import MaterialDepotStockList from './modules/MaterialDepotStockList'
   import { JeecgListMixin } from '@/mixins/JeecgListMixin'
   import { getAction, getFileAccessHttpUrl } from '@/api/manage'
@@ -170,6 +177,7 @@
     mixins:[JeecgListMixin],
     components: {
       MaterialInOutList,
+      StockPriceInOutList,
       MaterialDepotStockList,
       JEllipsis
     },
@@ -200,6 +208,8 @@
         currentStock: '',
         currentStockPrice: '',
         currentWeight: '',
+        showStockPrice: false,
+        moveAvgPriceFlag: false,
         pageName: 'materialStock',
         // 默认索引
         defDataIndex:['rowIndex','action','mBarCode','name','standard','model','color','categoryName', 'position','unitName',
@@ -226,7 +236,9 @@
           {title: '类别', dataIndex: 'categoryName', width: 60, ellipsis:true},
           {title: '仓位货架', dataIndex: 'position', width: 60, ellipsis:true},
           {title: '单位', dataIndex: 'unitName', width: 60, ellipsis:true},
-          {title: '成本价', dataIndex: 'purchaseDecimal', sorter: (a, b) => a.purchaseDecimal - b.purchaseDecimal, width: 60},
+          {title: '成本价', dataIndex: 'purchaseDecimal', sorter: (a, b) => a.purchaseDecimal - b.purchaseDecimal, width: 60,
+            scopedSlots: { customRender: 'customRenderPurchaseDecimal' }
+          },
           {title: '初始库存', dataIndex: 'initialStock', width: 60},
           {title: '库存', dataIndex: 'currentStock', sorter: (a, b) => a.currentStock - b.currentStock, width: 60,
             scopedSlots: { customRender: 'customRenderStock' }
@@ -305,6 +317,8 @@
             this.currentStock = res.data.currentStock.toFixed(2)
             this.currentStockPrice = res.data.currentStockPrice.toFixed(2)
             this.currentWeight = res.data.currentWeight.toFixed(2)
+            this.showStockPrice = res.data.showStockPrice
+            this.moveAvgPriceFlag = res.data.moveAvgPriceFlag
           } else if(res.code===510){
             this.$message.warning(res.data)
           } else {
@@ -331,14 +345,30 @@
         this.$refs.materialDepotStockList.title = "查看商品库存分布（条码：" + record.mBarCode + "，名称：" + record.name + "）";
         this.$refs.materialDepotStockList.disableSubmit = false;
       },
+      showStockPriceInOutList(record) {
+        let depotIds = ''
+        if(this.depotSelected && this.depotSelected.length>0) {
+          depotIds = this.depotSelected.join()
+        }
+        this.$refs.stockPriceInOutList.show(record, depotIds);
+        this.$refs.stockPriceInOutList.title = "查看成本价的单据流水";
+        this.$refs.stockPriceInOutList.disableSubmit = false;
+      },
       exportExcel() {
         let list = []
-        let head = '条码,名称,规格,型号,颜色,品牌,制造商,类别,单位,成本价,初始库存,库存,库存金额,重量'
+        let headArray = this.defColumns
+          .filter(col => col.dataIndex !== 'rowIndex' && col.dataIndex !== 'action' && col.dataIndex !== 'pic')
+          .map(col => col.title)
+        let head = headArray.join(',')
+
         for (let i = 0; i < this.dataSource.length; i++) {
           let item = []
           let ds = this.dataSource[i]
-          item.push(ds.mBarCode, ds.name, ds.standard, ds.model, ds.color, ds.brand, ds.mfrs, ds.categoryName, ds.unitName,
-            ds.purchaseDecimal, ds.initialStock, ds.currentStock, ds.currentStockPrice, ds.currentWeight)
+          this.defColumns.forEach(col => {
+            if (col.dataIndex !== 'rowIndex' && col.dataIndex !== 'action' && col.dataIndex !== 'pic') {
+              item.push(ds[col.dataIndex])
+            }
+          })
           list.push(item)
         }
         let tip = '商品库存查询'

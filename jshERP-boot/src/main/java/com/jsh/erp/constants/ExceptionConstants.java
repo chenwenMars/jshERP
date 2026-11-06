@@ -39,6 +39,13 @@ public class ExceptionConstants {
      **/
     public static final int DELETE_FORCE_CONFIRM_CODE = 601;
     public static final String DELETE_FORCE_CONFIRM_MSG = "检测到存在依赖数据，不能删除！";
+
+    /**
+     * 文件扩展名必须为xls
+     **/
+    public static final int FILE_EXTENSION_ERROR_CODE = 701;
+    public static final String FILE_EXTENSION_ERROR_MSG = "文件扩展名必须为xls";
+
     /**
      * 用户信息
      * type = 5
@@ -67,9 +74,9 @@ public class ExceptionConstants {
     //租户不能被删除
     public static final int USER_LIMIT_TENANT_DELETE_CODE = 500008;
     public static final String USER_LIMIT_TENANT_DELETE_MSG = "抱歉，租户不能被删除";
-    //当前机构已经存在经理
+    //当前部门已经存在经理
     public static final int USER_LEADER_IS_EXIST_CODE = 500009;
-    public static final String USER_LEADER_IS_EXIST_MSG = "抱歉，当前机构已经存在经理";
+    public static final String USER_LEADER_IS_EXIST_MSG = "抱歉，当前部门已经存在经理";
     //验证码错误
     public static final int USER_JCAPTCHA_ERROR_CODE = 500010;
     public static final String USER_JCAPTCHA_ERROR_MSG = "验证码错误";
@@ -79,6 +86,9 @@ public class ExceptionConstants {
     //验证码不能为空
     public static final int USER_JCAPTCHA_EMPTY_CODE = 500012;
     public static final String USER_JCAPTCHA_EMPTY_MSG = "验证码不能为空";
+    //当前角色的数据类型是本部门数据，所以必须选择部门
+    public static final int USER_ROLE_ORGA_EMPTY_CODE = 500013;
+    public static final String USER_ROLE_ORGA_EMPTY_MSG = "当前角色的数据类型是本部门数据，所以必须选择部门";
 
     /**
      * 角色信息
@@ -296,9 +306,6 @@ public class ExceptionConstants {
     //序列号和批号只能有一项
     public static final int MATERIAL_ENABLE_MUST_ONE_CODE = 8000008;
     public static final String MATERIAL_ENABLE_MUST_ONE_MSG = "抱歉，商品条码:%s的序列号和批号不能同时填1";
-    //抱歉，文件扩展名必须为xls
-    public static final int MATERIAL_EXTENSION_ERROR_CODE = 8000009;
-    public static final String MATERIAL_EXTENSION_ERROR_MSG = "抱歉，文件扩展名必须为xls";
     //名称为空
     public static final int MATERIAL_NAME_EMPTY_CODE = 8000010;
     public static final String MATERIAL_NAME_EMPTY_MSG = "第%s行名称为空";
@@ -356,6 +363,9 @@ public class ExceptionConstants {
     //EXCEL中有副条码在系统中已存在（除自身商品之外）
     public static final int MATERIAL_EXCEL_IMPORT_MANY_BARCODE_EXIST_CODE = 80000028;
     public static final String MATERIAL_EXCEL_IMPORT_MANY_BARCODE_EXIST_MSG = "抱歉，EXCEL中有副条码在系统中已存在，具体副条码为：%s";
+    //单据中商品库存不足
+    public static final int BILL_MATERIAL_STOCK_NOT_ENOUGH_CODE = 80000029;
+    public static final String BILL_MATERIAL_STOCK_NOT_ENOUGH_MSG = "单据:%s中商品:%s库存不足";
 
     /**
      *  单据信息
@@ -451,6 +461,15 @@ public class ExceptionConstants {
     //单据录入-请勿频繁提交单据
     public static final int DEPOT_HEAD_SUBMIT_REPEAT_FAILED_CODE = 8500032;
     public static final String DEPOT_HEAD_SUBMIT_REPEAT_FAILED_MSG = "抱歉，请不要频繁提交单据";
+    //单据录入-单据明细中存在重复的序列号
+    public static final int DEPOT_HEAD_CHECK_SERIAL_NUMBER_REPEAT_CODE = 8500033;
+    public static final String DEPOT_HEAD_CHECK_SERIAL_NUMBER_REPEAT_MSG = "抱歉，单据明细中存在重复的序列号:%s";
+    //单据录入-序列号已被出库，不允许修改该单据
+    public static final int DEPOT_HEAD_SN_NOT_ALLOW_UPDATE_CODE = 8500035;
+    public static final String DEPOT_HEAD_SN_NOT_ALLOW_UPDATE_MSG = "抱歉，序列号:%s已被出库，不允许修改该单据";
+    //单据录入-单据被财务单据关联，不允许单独删除
+    public static final int DEPOT_HEAD_FINANCIAL_ASSOCIATED_CODE = 8500036;
+    public static final String DEPOT_HEAD_FINANCIAL_ASSOCIATED_MSG = "单据:%s被财务单据:%s关联，不允许单独删除";
 
     /**
      *  单据明细信息
@@ -506,6 +525,12 @@ public class ExceptionConstants {
     //财务信息录入-付款账户和明细中的账户重复
     public static final int ACCOUNT_HEAD_ACCOUNT_REPEAT_CODE = 9500006;
     public static final String ACCOUNT_HEAD_ACCOUNT_REPEAT_MSG = "抱歉，付款账户:%s和明细中的账户重复";
+    //财务信息审核-只有未审核的单据才能审核
+    public static final int ACCOUNT_HEAD_UN_AUDIT_TO_AUDIT_FAILED_CODE = 9500007;
+    public static final String ACCOUNT_HEAD_UN_AUDIT_TO_AUDIT_FAILED_MSG = "抱歉，只有未审核的单据才能审核";
+    //财务信息反审核-只有已审核的单据才能反审核
+    public static final int ACCOUNT_HEAD_AUDIT_TO_UN_AUDIT_FAILED_CODE = 9500008;
+    public static final String ACCOUNT_HEAD_AUDIT_TO_UN_AUDIT_FAILED_MSG = "抱歉，只有已审核的单据才能反审核";
     /**
      *  财务明细信息
      * type = 100
@@ -530,52 +555,70 @@ public class ExceptionConstants {
     public static final int SERIAL_NUMBERE_NOT_EXISTS_CODE = 10500001;
     public static final String SERIAL_NUMBERE_NOT_EXISTS_MSG = "序列号:%s不存在或者已经出库";
     /**
-     * 机构信息
+     * 部门信息
      * type = 110
      * */
-    //添加机构信息失败
+    //添加部门信息失败
     public static final int ORGANIZATION_ADD_FAILED_CODE = 11000000;
-    public static final String ORGANIZATION_ADD_FAILED_MSG = "添加机构信息失败";
-    //删除机构信息失败
+    public static final String ORGANIZATION_ADD_FAILED_MSG = "添加部门信息失败";
+    //删除部门信息失败
     public static final int ORGANIZATION_DELETE_FAILED_CODE = 11000001;
-    public static final String ORGANIZATION_DELETE_FAILED_MSG = "删除机构信息失败";
-    //修改机构信息失败
+    public static final String ORGANIZATION_DELETE_FAILED_MSG = "删除部门信息失败";
+    //修改部门信息失败
     public static final int ORGANIZATION_EDIT_FAILED_CODE = 11000002;
-    public static final String ORGANIZATION_EDIT_FAILED_MSG = "修改机构信息失败";
-    //机构编号已存在
+    public static final String ORGANIZATION_EDIT_FAILED_MSG = "修改部门信息失败";
+    //部门编号已存在
     public static final int ORGANIZATION_NO_ALREADY_EXISTS_CODE = 11000003;
-    public static final String ORGANIZATION_NO_ALREADY_EXISTS_MSG = "机构编号已存在";
-    //根机构不允许删除
+    public static final String ORGANIZATION_NO_ALREADY_EXISTS_MSG = "部门编号已存在";
+    //根部门不允许删除
     public static final int ORGANIZATION_ROOT_NOT_ALLOWED_DELETE_CODE = 11000004;
-    public static final String ORGANIZATION_ROOT_NOT_ALLOWED_DELETE_MSG = "根机构不允许删除";
-    //根机构不允许修改
+    public static final String ORGANIZATION_ROOT_NOT_ALLOWED_DELETE_MSG = "根部门不允许删除";
+    //根部门不允许修改
     public static final int ORGANIZATION_ROOT_NOT_ALLOWED_EDIT_CODE = 11000005;
-    public static final String ORGANIZATION_ROOT_NOT_ALLOWED_EDIT_MSG = "根机构不允许修改";
-    //该机构存在下级不允许删除
+    public static final String ORGANIZATION_ROOT_NOT_ALLOWED_EDIT_MSG = "根部门不允许修改";
+    //该部门存在下级不允许删除
     public static final int ORGANIZATION_CHILD_NOT_ALLOWED_DELETE_CODE = 11000006;
-    public static final String ORGANIZATION_CHILD_NOT_ALLOWED_DELETE_MSG = "该机构存在下级不允许删除";
+    public static final String ORGANIZATION_CHILD_NOT_ALLOWED_DELETE_MSG = "该部门存在下级不允许删除";
     /**
-     * 机构用户关联关系
+     * 部门用户关联关系
      * type = 115
      * */
-    //添加机构用户关联关系失败
+    //添加部门用户关联关系失败
     public static final int ORGA_USER_REL_ADD_FAILED_CODE = 11500000;
-    public static final String ORGA_USER_REL_ADD_FAILED_MSG = "添加机构用户关联关系失败";
-    //删除机构用户关联关系失败
+    public static final String ORGA_USER_REL_ADD_FAILED_MSG = "添加部门用户关联关系失败";
+    //删除部门用户关联关系失败
     public static final int ORGA_USER_REL_DELETE_FAILED_CODE = 11500001;
-    public static final String ORGA_USER_REL_DELETE_FAILED_MSG = "删除机构用户关联关系失败";
-    //修改机构用户关联关系失败
+    public static final String ORGA_USER_REL_DELETE_FAILED_MSG = "删除部门用户关联关系失败";
+    //修改部门用户关联关系失败
     public static final int ORGA_USER_REL_EDIT_FAILED_CODE = 11500002;
-    public static final String ORGA_USER_REL_EDIT_FAILED_MSG = "修改机构用户关联关系失败";
+    public static final String ORGA_USER_REL_EDIT_FAILED_MSG = "修改部门用户关联关系失败";
 
     //进销存统计，如果有权限的仓库数量太多则提示要选择仓库
     public static final int REPORT_TWO_MANY_DEPOT_FAILED_CODE = 510;
     public static final String REPORT_TWO_MANY_DEPOT_FAILED_MSG = "请选择仓库，再进行查询";
 
+    /**
+     * 生成单据编号
+     * type = 120
+     * */
+    //获取唯一单据编号失败
+    public static final int SEQUENCE_ONLY_FAILED_CODE = 12000001;
+    public static final String SEQUENCE_ONLY_FAILED_MSG = "获取唯一单据编号失败，请稍后重试";
+    //获取唯一单据编号操作被中断
+    public static final int SEQUENCE_ONLY_BREAK_CODE = 12000002;
+    public static final String SEQUENCE_ONLY_BREAK_MSG = "获取唯一单据编号操作被中断";
+
+    /**
+     * 字典
+     * type = 125
+     * */
+    //字典类型已分配,不能删除
+    public static final int DICT_TYPE_ALREADY_USED_CODE = 12500001;
+    public static final String DICT_TYPE_ALREADY_USED_MSG = "%s已分配,不能删除";
+
     //演示用户禁止操作
     public static final int SYSTEM_CONFIG_TEST_USER_CODE = -1;
     public static final String SYSTEM_CONFIG_TEST_USER_MSG = "演示用户禁止操作";
-
 
     /**
      * 标准正常返回/操作成功返回
