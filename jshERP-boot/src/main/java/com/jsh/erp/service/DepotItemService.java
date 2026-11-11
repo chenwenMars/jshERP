@@ -9,17 +9,22 @@ import com.jsh.erp.datasource.mappers.*;
 import com.jsh.erp.datasource.vo.*;
 import com.jsh.erp.exception.BusinessRunTimeException;
 import com.jsh.erp.exception.JshException;
+import com.jsh.erp.utils.ExcelUtils;
 import com.jsh.erp.utils.StringUtil;
 import com.jsh.erp.utils.Tools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.io.File;
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.function.BiConsumer;
 
 @Service
 public class DepotItemService {
@@ -29,6 +34,9 @@ public class DepotItemService {
     private final static String SUM_TYPE = "number";
     private final static String IN = "in";
     private final static String OUT = "out";
+
+    @Value(value="${file.exportTmp}")
+    private String fileExportTmp;
 
     @Resource
     private DepotItemMapper depotItemMapper;
@@ -1143,18 +1151,65 @@ public class DepotItemService {
         List<DepotItemVo4DetailByTypeAndMId> itemList = findDetailByDepotIdsAndMaterialIdList(null, forceFlag, inOutManageFlag, null,
                 null, null, null, null, depotItem.getMaterialId(), null, null);
         Collections.reverse(itemList); //倒序之后变成按时间从前往后排序
+        // 只关心最终成本价，回调传 null
+        BigDecimal currentUnitPrice = calculateCurrentUnitPrice(itemList, unitInfo, null);
+        //更新实时库存中的当前单价
+        materialCurrentStockMapperEx.updateUnitPriceByMId(currentUnitPrice, depotItem.getMaterialId());
+    }
+
+    /**
+     * 给列表里面加上成本价
+     * @param itemList
+     * @param mId
+     * @return
+     * @throws Exception
+     */
+    public List<DepotItemVo4DetailWithCurrentUnitPrice> findDetailWithCurrentUnitPrice(List<DepotItemVo4DetailByTypeAndMId> itemList, Long mId) throws Exception {
+        List<DepotItemVo4DetailWithCurrentUnitPrice> result = new ArrayList<>();
+        //查询多单位信息
+        Unit unitInfo = materialService.findUnit(mId);
+        Collections.reverse(itemList); //倒序之后变成按时间从前往后排序
+        // 每处理一条明细，就把当前成本价回调出去，由调用方决定怎么用
+        BigDecimal finalUnitPrice = calculateCurrentUnitPrice(itemList, unitInfo, (item, currentUnitPrice) -> {
+            DepotItemVo4DetailWithCurrentUnitPrice currentUnitPirceItem = new DepotItemVo4DetailWithCurrentUnitPrice();
+            // 将原 item 的其它字段拷贝到新对象
+            BeanUtils.copyProperties(item, currentUnitPirceItem);
+            //加上成本价
+            currentUnitPirceItem.setCurrentUnitPrice(currentUnitPrice);
+            result.add(currentUnitPirceItem);
+        });
+        Collections.reverse(result); //再次倒序
+        return result;
+    }
+
+    /**
+     * 公共方法：按明细列表计算移动加权平均成本价
+     *
+     * @param itemList  已按时间从前往后排序的明细列表
+     * @param unitInfo  多单位信息
+     * @param consumer  每条明细处理后的回调，参数为(当前明细, 当前成本价)；
+     *                  不需要逐条处理时传 null
+     * @return 最终的成本单价
+     */
+    private BigDecimal calculateCurrentUnitPrice(List<DepotItemVo4DetailByTypeAndMId> itemList,
+                                                 Unit unitInfo, BiConsumer<DepotItemVo4DetailByTypeAndMId, BigDecimal> consumer) {
         BigDecimal currentNumber = BigDecimal.ZERO;
         BigDecimal currentUnitPrice = BigDecimal.ZERO;
         BigDecimal currentAllPrice = BigDecimal.ZERO;
-        for(DepotItemVo4DetailByTypeAndMId item: itemList) {
-            BigDecimal basicNumber = item.getBnum()!=null?item.getBnum():BigDecimal.ZERO;
+
+        for (DepotItemVo4DetailByTypeAndMId item : itemList) {
+            BigDecimal basicNumber = item.getBnum() != null ? item.getBnum() : BigDecimal.ZERO;
             //数量*单价  另外计算新的成本价
-            BigDecimal allPrice = unitService.parseAllPriceByUnit(item.getAllPrice()!=null?item.getAllPrice():BigDecimal.ZERO, unitInfo, item.getMaterialUnit());
-            if(basicNumber.compareTo(BigDecimal.ZERO)!=0 && allPrice.compareTo(BigDecimal.ZERO)!=0) {
+            BigDecimal allPrice = unitService.parseAllPriceByUnit(
+                    item.getAllPrice() != null ? item.getAllPrice() : BigDecimal.ZERO,
+                    unitInfo, item.getMaterialUnit());
+
+            if (basicNumber.compareTo(BigDecimal.ZERO) != 0 && allPrice.compareTo(BigDecimal.ZERO) != 0) {
                 //入库
                 if (BusinessConstants.DEPOTHEAD_TYPE_IN.equals(item.getType())) {
                     //零售退货、销售退货
-                    if (BusinessConstants.SUB_TYPE_RETAIL_RETURN.equals(item.getSubType()) || BusinessConstants.SUB_TYPE_SALES_RETURN.equals(item.getSubType())) {
+                    if (BusinessConstants.SUB_TYPE_RETAIL_RETURN.equals(item.getSubType())
+                            || BusinessConstants.SUB_TYPE_SALES_RETURN.equals(item.getSubType())) {
                         //数量*当前的成本单价
                         currentNumber = currentNumber.add(basicNumber);
                         currentAllPrice = currentAllPrice.add(basicNumber.multiply(currentUnitPrice));
@@ -1188,21 +1243,26 @@ public class DepotItemService {
                     }
                 }
                 //特殊情况：1-组装单 2-拆卸单 3-盘点复盘
-                if(BusinessConstants.SUB_TYPE_ASSEMBLE.equals(item.getSubType())||
-                        BusinessConstants.SUB_TYPE_DISASSEMBLE.equals(item.getSubType())||
-                        BusinessConstants.SUB_TYPE_REPLAY.equals(item.getSubType())) {
+                if (BusinessConstants.SUB_TYPE_ASSEMBLE.equals(item.getSubType())
+                        || BusinessConstants.SUB_TYPE_DISASSEMBLE.equals(item.getSubType())
+                        || BusinessConstants.SUB_TYPE_REPLAY.equals(item.getSubType())) {
                     //数量*当前的成本单价
                     currentNumber = currentNumber.add(basicNumber);
                     currentAllPrice = currentAllPrice.add(basicNumber.multiply(currentUnitPrice));
                 }
                 //防止单价金额溢出
-                if(currentUnitPrice.compareTo(BigDecimal.valueOf(100000000))>0 || currentUnitPrice.compareTo(BigDecimal.valueOf(-100000000))<0) {
+                if (currentUnitPrice.compareTo(BigDecimal.valueOf(100000000)) > 0
+                        || currentUnitPrice.compareTo(BigDecimal.valueOf(-100000000)) < 0) {
                     currentUnitPrice = BigDecimal.ZERO;
                 }
             }
+
+            // 逐条回调（如果需要）
+            if (consumer != null) {
+                consumer.accept(item, currentUnitPrice);
+            }
         }
-        //更新实时库存中的当前单价
-        materialCurrentStockMapperEx.updateUnitPriceByMId(currentUnitPrice, depotItem.getMaterialId());
+        return currentUnitPrice;
     }
 
     /**
@@ -1531,5 +1591,40 @@ public class DepotItemService {
                         String.format(ExceptionConstants.BILL_MATERIAL_STOCK_NOT_ENOUGH_MSG, number, stockMsg));
             }
         }
+    }
+
+    /**
+     * 根据仓库和商品查询单据列表-导出含成本价的列表
+     * @param currentUnitPriceList
+     * @return
+     * @throws Exception
+     */
+    public File exportDetailByDepotIdsAndMaterialId(List<DepotItemVo4DetailWithCurrentUnitPrice> currentUnitPriceList) throws Exception {
+        String[] names = {"单据编号", "类型", "条码", "名称", "仓库名称", "数量", "单价", "金额", "成本价", "日期"};
+        String title = "信息内容";
+        List<Object[]> objects = new ArrayList<>();
+        if (null != currentUnitPriceList) {
+            for (DepotItemVo4DetailWithCurrentUnitPrice item : currentUnitPriceList) {
+                Object[] objs = new Object[names.length];
+                objs[0] = item.getNumber();
+                String type = item.getType();
+                String subType = item.getSubType();
+                if(("其它").equals(type)) {
+                    objs[1] = subType; //进出类型
+                } else {
+                    objs[1] = subType + type; //进出类型
+                }
+                objs[2] = item.getBarCode();
+                objs[3] = item.getMaterialName();
+                objs[4] = item.getDepotName();
+                objs[5] = item.getBnum();
+                objs[6] = item.getUnitPrice();
+                objs[7] = item.getAllPrice();
+                objs[8] = item.getCurrentUnitPrice();
+                objs[9] = Tools.getCenternTime(item.getOtime());
+                objects.add(objs);
+            }
+        }
+        return ExcelUtils.exportObjectsOneSheet(fileExportTmp, title, "商品成本价流水查询", names, title, objects);
     }
 }
